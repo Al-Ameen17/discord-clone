@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+    <head>
+        <title>we finna replace discord nigga😜</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+        <div class="servers-list">
+            <ul>
+                <li class="server-name">
+                    <a href="#" onclick="joinRoom('general')"># general</a>
+                </li>
+                <li class="server-name">
+                    <a href="#" onclick="joinRoom('gaming')"># gaming</a>
+                </li>
+                <li class="server-name">
+                    <a href="#" onclick="joinRoom('music')"># music</a>
+                </li>
+            </ul>
+        </div>
+        <div class="content">
+            <div id="message-container">
+                <p><strong>System:</strong> Welcome to the server!</p>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Message #general...">
+            </div>
+        </div>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+            var socket = io(); // Initialize socket FIRST so the function can use it
+
+            // Define the function that the buttons click
+            function joinRoom(roomName) {
+                // Clear the current chat history on screen
+                document.getElementById('message-container').innerHTML = '';
+
+                // FIX: The comma is now OUTSIDE the quotes
+                socket.emit('join room', roomName);
+                
+                // Optional: Update the placeholder text to match the room
+                document.getElementById('message-input').placeholder = `Message #${roomName}...`;
+            }
+
+            // Ask for username
+            const username = prompt("Enter your username:") || "Anonymous";
+
+            const input = document.getElementById('message-input');
+            const container = document.getElementById('message-container');
+
+            // HELPER FUNCTION: This adds a message to the screen
+            function addMessageToScreen(msg) {
+                const item = document.createElement('p');
+                // Check if the message is from "System" to style it differently (optional)
+                if (msg.user === 'System') {
+                    item.style.color = '#ff5555'; // Make system messages red
+                    item.innerHTML = `<em>${msg.text}</em>`;
+                } else {
+                    item.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
+                }
+                container.appendChild(item);
+                container.scrollTop = container.scrollHeight; 
+            }
+
+            // 1. Listen for the 'load history' event
+            socket.on('load history', function(history) {
+                history.forEach(function(msg) {
+                    addMessageToScreen(msg);
+                });
+            });
+
+            // 2. Listen for real-time messages
+            socket.on('chat message', function(msg) {
+                addMessageToScreen(msg);
+            });
+
+            // 3. Send message when Enter is pressed
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && input.value) {
+                    const messageData = { user: username, text: input.value };
+                    socket.emit('chat message', messageData);
+                    input.value = '';
+                }
+            });
+        </script>
+    </body>
+</html>
