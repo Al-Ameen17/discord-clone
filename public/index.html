@@ -53,14 +53,32 @@
 
             // HELPER FUNCTION: This adds a message to the screen
             function addMessageToScreen(msg) {
-                const item = document.createElement('p');
-                // Check if the message is from "System" to style it differently (optional)
+                const item = document.createElement('div'); // Changed to div for better layout
+                item.style.marginBottom = "10px"; // Add some spacing
+                
+                // 1. Check if the message is a system message
                 if (msg.user === 'System') {
-                    item.style.color = '#ff5555'; // Make system messages red
+                    item.style.color = '#ff5555';
                     item.innerHTML = `<em>${msg.text}</em>`;
                 } else {
-                    item.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
+                    // 2. The "Regex" pattern to find image URLs
+                    // It looks for http/https and ends with jpg, jpeg, png, gif, or webp
+                    const imagePattern = /\.(jpeg|jpg|gif|png|webp)$/i;
+
+                    if (msg.text.match(imagePattern) && (msg.text.startsWith('http'))) {
+                        // IT IS AN IMAGE!
+                        item.innerHTML = `
+                            <strong>${msg.user}:</strong><br>
+                            <img src="${msg.text}" style="max-width: 300px; max-height: 300px; border-radius: 8px; margin-top: 5px;">
+                        `;
+                    } else {
+                        // IT IS JUST TEXT
+                        // We use textContent for security (prevents HTML injection)
+                        // But we construct the HTML string for the username
+                        item.innerHTML = `<strong>${msg.user}:</strong> <span>${msg.text}</span>`;
+                    }
                 }
+                
                 container.appendChild(item);
                 container.scrollTop = container.scrollHeight; 
             }
