@@ -21,29 +21,31 @@ const Message = mongoose.model('Message', new mongoose.Schema({
     user: String,
     text: String,
     room: String,
+    avatar: String,
     timestamp: { type: Date, default: Date.now }
 }));
 
-// User Model (New!)
+// User Model
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, required: true, unique: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    avatar: { type: String } 
 }));
 
 // --- 2. AUTHENTICATION ROUTES ---
-// Register Route
+// Register Route (Generate avatar on sign-up)
 app.post('/register', async (req, res) => {
     try {
         const { username, password } = req.body;
-        // Check if user exists
         const existingUser = await User.findOne({ username });
         if (existingUser) return res.status(400).json({ success: false, message: "Username taken" });
 
-        // Encrypt password
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Save user
-        const newUser = new User({ username, password: hashedPassword });
+        // GENERATE AVATAR: distinct visual style based on username
+        const avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
+        
+        const newUser = new User({ username, password: hashedPassword, avatar });
         await newUser.save();
         
         res.json({ success: true, message: "User created!" });
@@ -52,18 +54,24 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// Login Route
+// Login Route (Send avatar to client)
 app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
         
-        // Check user and password
         if (!user || !await bcrypt.compare(password, user.password)) {
             return res.status(400).json({ success: false, message: "Invalid credentials" });
         }
 
-        res.json({ success: true, username: user.username });
+        // MIGRATION FIX: If old user has no avatar, give them one now
+        if (!user.avatar) {
+            user.avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
+            await user.save();
+        }
+
+        // Send both username AND avatar
+        res.json({ success: true, username: user.username, avatar: user.avatar });
     } catch (err) {
         res.status(500).json({ success: false, message: "Error logging in" });
     }
@@ -99,12 +107,23 @@ io.on('connection', (socket) => {
         const newMessage = new Message({
             user: msg.user,
             text: msg.text,
-            room: currentRoom
+            room: currentRoom,
+            avatar: msg.avatar
         });
 
         newMessage.save().then(() => {
             io.to(currentRoom).emit('chat message', msg);
         });
+    });
+    // Handle Message Deletion
+    socket.on('delete message', (messageId) => {
+        // 1. Delete from Database
+        Message.findByIdAndDelete(messageId)
+            .then(() => {
+                // 2. Tell everyone to remove it from their screen
+                io.emit('delete message', messageId);
+            })
+            .catch(err => console.error("Delete failed:", err));
     });
     // Handle Typing
     socket.on('typing', (data) => {

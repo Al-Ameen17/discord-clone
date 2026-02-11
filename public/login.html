@@ -31,6 +31,7 @@
             if (data.success) {
                 // Save user info locally and go to chat
                 localStorage.setItem('username', data.username);
+                localStorage.setItem('avatar', data.avatar);
                 window.location.href = '/';
             } else {
                 showError(data.message);

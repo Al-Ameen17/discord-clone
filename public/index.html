@@ -39,7 +39,8 @@
         <script src="/socket.io/socket.io.js"></script>
         <script>
             // CHECK LOGIN STATUS
-            const username = localStorage.getItem('username');
+            const username = localStorage.getItem('username');           
+            const avatar = localStorage.getItem('avatar'); 
             
             // If no username is saved, kick them back to login page
             if (!username) {
@@ -64,40 +65,74 @@
             const input = document.getElementById('message-input');
             const container = document.getElementById('message-container');
 
-            // HELPER FUNCTION: This adds a message to the screen
-            function addMessageToScreen(msg) {
-                const item = document.createElement('div');
-                item.style.marginBottom = "10px";
-                
-                // 1. Format the time (e.g., "10:42 PM")
-                const date = new Date(msg.timestamp || Date.now()); // Use current time if missing
+        // HELPER FUNCTION: This adds a message to the screen
+        function addMessageToScreen(msg) {
+            const item = document.createElement('div');
+            item.style.marginBottom = "15px";
+            item.style.display = "flex";
+            item.id = `msg-${msg._id}`;
+
+            // 1. Handle SYSTEM messages (Red text, no avatar)
+            if (msg.user === 'System') {
+                const date = new Date(msg.timestamp || Date.now());
                 const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                if (msg.user === 'System') {
-                    item.style.color = '#ff5555';
-                    item.innerHTML = `<span style="font-size: 0.8em; color: #888;">[${timeString}]</span> <em>${msg.text}</em>`;
-                } else {
-                    const imagePattern = /\.(jpeg|jpg|gif|png|webp)$/i;
-
-                    // 2. We add the timeString to the HTML
-                    if (imagePattern.test(msg.text) && (msg.text.startsWith('http'))) {
-                        item.innerHTML = `
-                            <span style="font-size: 0.8em; color: #72767d;">[${timeString}]</span> 
-                            <strong>${msg.user}:</strong><br>
-                            <img src="${msg.text}" style="max-width: 300px; max-height: 300px; border-radius: 8px; margin-top: 5px;">
-                        `;
-                    } else {
-                        item.innerHTML = `
-                            <span style="font-size: 0.8em; color: #72767d;">[${timeString}]</span> 
-                            <strong>${msg.user}:</strong> <span>${msg.text}</span>
-                        `;
-                    }
-                }
-                
+                item.style.color = '#ff5555';
+                item.innerHTML = `<span style="font-size: 0.8em; color: #888;">[${timeString}]</span> <em>${msg.text}</em>`;
                 container.appendChild(item);
-                container.scrollTop = container.scrollHeight; 
+                container.scrollTop = container.scrollHeight;
+                return; // Stop here for system messages
             }
 
+            // 2. Handle USER messages (Avatar + Name + Text/Image)
+            const userAvatar = msg.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${msg.user}`;
+            const date = new Date(msg.timestamp || Date.now());
+            const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            // Check for Delete Permissions
+            const isAdmin = localStorage.getItem('username') === 'Sergslow';
+            const deleteBtn = isAdmin ? `<span onclick="deleteMessage('${msg._id}')" style="cursor:pointer; color:red; margin-left:10px;">🗑️</span>` : '';
+
+            // Check for Image Links
+            const imagePattern = /\.(jpeg|jpg|gif|png|webp)$/i;
+            let messageBody = msg.text;
+            
+            if (imagePattern.test(msg.text) && msg.text.startsWith('http')) {
+                messageBody = `<img src="${msg.text}" style="max-width: 300px; max-height: 300px; border-radius: 8px; margin-top: 5px;">`;
+            }
+
+            // 3. Build the Final HTML
+            item.innerHTML = `
+                <img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px;">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: baseline; margin-bottom: 2px;">
+                        <strong style="color: white; margin-right: 10px;">${msg.user}</strong>
+                        <span style="font-size: 0.75em; color: #949ba4;">${timeString}</span>
+                        ${deleteBtn}
+                    </div>
+                    <div style="color: #dbdee1; line-height: 1.4;">
+                        ${messageBody}
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(item);
+            container.scrollTop = container.scrollHeight; 
+        }
+
+        // 1. Function to send the delete command
+        function deleteMessage(id) {
+            if(confirm("Are you sure you want to delete this?")) {
+               socket.emit('delete message', id);
+            }
+        }
+
+            // 2. Listen for the delete command from server
+            socket.on('delete message', (id) => {
+                const element = document.getElementById(`msg-${id}`);
+                if (element) {
+                    element.remove();
+                }
+            });
             // 1. Listen for the 'load history' event
             socket.on('load history', function(history) {
                 history.forEach(function(msg) {
@@ -113,7 +148,7 @@
             // 3. Send message when Enter is pressed
             input.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && input.value) {
-                    const messageData = { user: username, text: input.value };
+                    const messageData = { user: username, text: input.value, avatar: avatar };
                     socket.emit('chat message', messageData);
                     input.value = '';
                 }
@@ -153,6 +188,7 @@
                     list.appendChild(li);
                 });
             });
+
         </script>
     </body>
 </html>
