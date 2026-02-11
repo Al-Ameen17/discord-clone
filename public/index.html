@@ -18,13 +18,20 @@
                     <a href="#" onclick="joinRoom('music')"># music</a>
                 </li>
             </ul>
+
+            <h3 style="margin-top: 20px;">Online Users</h3>
+            <ul id="users-list">
+            </ul>
         </div>
         <div class="content">
             <div id="message-container">
                 <p><strong>System:</strong> Welcome to the server!</p>
             </div>
 
+            
             <div class="input-area">
+                <div id="typing-indicator">
+                </div> 
                 <input type="text" id="message-input" placeholder="Message #general...">
             </div>
         </div>
@@ -40,10 +47,11 @@
             }
 
             var socket = io(); // Initialize socket FIRST so the function can use it
-
+            let currentRoom = 'general';
             // Define the function that the buttons click
             function joinRoom(roomName) {
                 // Clear the current chat history on screen
+                currentRoom = roomName;
                 document.getElementById('message-container').innerHTML = '';
 
                 // FIX: The comma is now OUTSIDE the quotes
@@ -109,6 +117,41 @@
                     socket.emit('chat message', messageData);
                     input.value = '';
                 }
+            });
+            // --- TYPING INDICATOR LOGIC ---
+            const typingDiv = document.getElementById('typing-indicator');
+            let typingTimeout;
+
+            // 1. Listen for key presses
+            input.addEventListener('input', () => {
+                socket.emit('typing', { user: username, room: currentRoom }); // We need to fix room logic slightly below
+            });
+
+            // 2. Listen for "Someone else is typing"
+            socket.on('display typing', (data) => {
+                typingDiv.innerText = `${data.user} is typing...`;
+                
+                // Clear the text after 3 seconds of silence
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    typingDiv.innerText = '';
+                }, 3000);
+            });
+            // 1. Announce ourselves when we load
+            socket.emit('user joined', username);
+
+            // 2. Listen for updates
+            socket.on('update user list', (users) => {
+                const list = document.getElementById('users-list');
+                list.innerHTML = ''; // Clear old list
+                
+                users.forEach(user => {
+                    const li = document.createElement('li');
+                    li.style.color = "#2ecc71"; // Online Green
+                    li.style.padding = "5px 10px";
+                    li.innerText = "● " + user;
+                    list.appendChild(li);
+                });
             });
         </script>
     </body>

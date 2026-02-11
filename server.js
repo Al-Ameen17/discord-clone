@@ -5,6 +5,7 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const bcrypt = require('bcryptjs'); // New security tool
+const activeUsers = new Set();
 
 app.use(express.static('public'));
 app.use(express.json()); // Allows server to read JSON data sent from login page
@@ -104,6 +105,27 @@ io.on('connection', (socket) => {
         newMessage.save().then(() => {
             io.to(currentRoom).emit('chat message', msg);
         });
+    });
+    // Handle Typing
+    socket.on('typing', (data) => {
+        // Broadcast to everyone in the room EXCEPT the sender
+        socket.to(data.room).emit('display typing', data);
+    });
+    // User announces presence
+    socket.on('user joined', (username) => {
+    socket.username = username; // Attach name to this socket
+    activeUsers.add(username);
+
+    // Tell everyone the new list
+    io.emit('update user list', Array.from(activeUsers));
+    });
+
+    // Handle Disconnect
+    socket.on('disconnect', () => {
+    if (socket.username) {
+        activeUsers.delete(socket.username);
+        io.emit('update user list', Array.from(activeUsers));
+    }
     });
 });
 

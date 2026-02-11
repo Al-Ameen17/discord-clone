@@ -79,3 +79,13 @@ body{
     outline: none;
     box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
 }
+
+#typing-indicator {
+    font-size: 0.8rem;
+    color: #dbdee1; /* Light grey */
+    font-style: italic;
+    height: 20px; /* Reserve space so it doesn't jump */
+    margin-bottom: 5px;
+    margin-left: 10px;
+    font-weight: bold;
+}
