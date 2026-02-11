@@ -7,239 +7,304 @@
     </head>
     <body>
         <audio id="notify-sound" src="https://assets.mixkit.co/active_storage/sfx/2848/2848.wav"></audio>
+        
         <div class="servers-list">
             <div style="display: flex; justify-content: space-between; align-items: center; padding-right: 10px;">
                 <h3>Rooms</h3>
                 <button onclick="createRoom()" style="background: none; border: none; color: #949ba4; cursor: pointer; font-size: 16px;">+</button>
             </div>
-            <ul id="rooms-list">
-                </ul>
+            <ul id="rooms-list"></ul>
 
             <h3 style="margin-top: 20px;">Online Users</h3>
-            <ul id="users-list">
-            </ul>
+            <ul id="users-list"></ul>
         </div>
+
         <div class="content">
             <button id="menu-btn" onclick="toggleSidebar()">☰</button>
+            
             <div id="message-container">
                 <p><strong>System:</strong> Welcome to the server!</p>
             </div>
 
-            
             <div class="input-area">
-                <div id="typing-indicator">
-                </div> 
+                <div id="typing-indicator"></div> 
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+                    <button onclick="document.getElementById('file-input').click()" style="background:none; border:none; cursor:pointer; color:#b5bac1;">📎 Media</button>
+                    <button id="emoji-btn" onclick="toggleEmojiPicker()" style="background:none; border:none; cursor:pointer; color:#b5bac1;">😀 Emoji</button>
+                </div>
+
+                <input type="file" id="file-input" accept="image/*,video/*" style="display: none;" onchange="uploadMedia()">
+                
                 <input type="text" id="message-input" placeholder="Message #general...">
             </div>
         </div>
 
         <script src="/socket.io/socket.io.js"></script>
-        <script>
-            // CHECK LOGIN STATUS
+        
+        <script type="module">
+            import { EmojiButton } from 'https://unpkg.com/@joeattardi/emoji-button@4.6.4/dist/index.js';
+
+            // --- INITIALIZATION ---
             const username = localStorage.getItem('username');           
             const avatar = localStorage.getItem('avatar'); 
-            
-            // If no username is saved, kick them back to login page
-            if (!username) {
-                window.location.href = '/login.html';
+            if (!username) window.location.href = '/login.html';
+
+            // Connect to Socket.IO (Global Scope)
+            window.socket = io(); 
+            let currentRoom = localStorage.getItem('lastRoom') || 'general';
+            let unreadDMs = {}; 
+
+            // --- IMMEDIATE STARTUP ---
+            updateRoomUI(currentRoom);
+
+            // --- 2. SETUP EMOJI PICKER ---
+            const picker = new EmojiButton({
+                position: 'top-start',
+                theme: 'dark', 
+                autoHide: false
+            });
+
+            picker.on('emoji', selection => {
+                const input = document.getElementById('message-input');
+                input.value += selection.emoji;
+                input.focus();
+            });
+
+            // Make toggle function global so HTML button can see it
+            window.toggleEmojiPicker = function() {
+                const trigger = document.getElementById('emoji-btn');
+                picker.togglePicker(trigger);
             }
 
-            var socket = io(); // Initialize socket FIRST so the function can use it
-            let currentRoom = 'general';
-            // Define the function that the buttons click
-            function joinRoom(roomName) {
-                // Clear the current chat history on screen
+            // --- CORE CHAT LOGIC ---
+            window.joinRoom = function(roomName) {
                 currentRoom = roomName;
-                document.getElementById('message-container').innerHTML = '';
-
-                // FIX: The comma is now OUTSIDE the quotes
-                socket.emit('join room', roomName);
+                localStorage.setItem('lastRoom', roomName);
                 
-                // Optional: Update the placeholder text to match the room
-                document.getElementById('message-input').placeholder = `Message #${roomName}...`;
+                updateRoomUI(roomName); 
+                
+                document.getElementById('message-container').innerHTML = '';
+                socket.emit('join room', roomName);
             }
 
-            const input = document.getElementById('message-input');
-            const container = document.getElementById('message-container');
-
-        // HELPER FUNCTION: This adds a message to the screen
-        function addMessageToScreen(msg) {
-            const item = document.createElement('div');
-            item.style.marginBottom = "15px";
-            item.style.display = "flex";
-            item.id = `msg-${msg._id}`;
-
-            // 1. Handle SYSTEM messages (Red text, no avatar)
-            if (msg.user === 'System') {
-                const date = new Date(msg.timestamp || Date.now());
-                const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                item.style.color = '#ff5555';
-                item.innerHTML = `<span style="font-size: 0.8em; color: #888;">[${timeString}]</span> <em>${msg.text}</em>`;
-                container.appendChild(item);
-                container.scrollTop = container.scrollHeight;
-                return; // Stop here for system messages
-            }
-
-            // 2. Handle USER messages (Avatar + Name + Text/Image)
-            const userAvatar = msg.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${msg.user}`;
-            const date = new Date(msg.timestamp || Date.now());
-            const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
-            // Check for Delete Permissions
-            const isAdmin = localStorage.getItem('username') === 'Sergslow';
-            const deleteBtn = isAdmin ? `<span onclick="deleteMessage('${msg._id}')" style="cursor:pointer; color:red; margin-left:10px;">🗑️</span>` : '';
-
-            // Check for Image Links
-            const imagePattern = /\.(jpeg|jpg|gif|png|webp)$/i;
-            let messageBody = msg.text;
-            
-            if (imagePattern.test(msg.text) && msg.text.startsWith('http')) {
-                messageBody = `<img src="${msg.text}" style="max-width: 300px; max-height: 300px; border-radius: 8px; margin-top: 5px;">`;
-            }
-
-            // 3. Build the Final HTML
-            item.innerHTML = `
-                <img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px;">
-                <div style="flex: 1;">
-                    <div style="display: flex; align-items: baseline; margin-bottom: 2px;">
-                        <strong style="color: white; margin-right: 10px;">${msg.user}</strong>
-                        <span style="font-size: 0.75em; color: #949ba4;">${timeString}</span>
-                        ${deleteBtn}
-                    </div>
-                    <div style="color: #dbdee1; line-height: 1.4;">
-                        ${messageBody}
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(item);
-            container.scrollTop = container.scrollHeight; 
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.querySelector('.servers-list');
-            sidebar.classList.toggle('active');
-        }
-
-        // 1. Function to send the delete command
-        function deleteMessage(id) {
-            if(confirm("Are you sure you want to delete this?")) {
-               socket.emit('delete message', id);
-            }
-        }
-
-        // 1. Load Rooms on Startup
-        async function loadRooms() {
-            const res = await fetch('/rooms');
-            const rooms = await res.json();
-            const list = document.getElementById('rooms-list');
-            list.innerHTML = ''; // Clear hardcoded list
-
-            rooms.forEach(room => addRoomToSidebar(room.name));
-        }
-
-        // Helper to add room HTML
-        function addRoomToSidebar(name) {
-            const list = document.getElementById('rooms-list');
-            const li = document.createElement('li');
-            li.className = 'server-name';
-            li.innerHTML = `<a href="#" onclick="joinRoom('${name}')"># ${name}</a>`;
-            list.appendChild(li);
-        }
-
-        // 2. Create Room Function
-        async function createRoom() {
-            const name = prompt("Enter room name (letters only):");
-            if (!name) return;
-
-            await fetch('/rooms', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ name })
-            });
-        }
-
-        // 3. Listen for new rooms (Real-time update)
-        socket.on('new room', (name) => {
-            addRoomToSidebar(name);
-        });
-
-        // CALL LOAD ROOMS AT START
-        loadRooms();
-
-            // 2. Listen for the delete command from server
-            socket.on('delete message', (id) => {
-                const element = document.getElementById(`msg-${id}`);
-                if (element) {
-                    element.remove();
+            function updateRoomUI(roomName) {
+                const input = document.getElementById('message-input');
+                if (roomName.startsWith('dm_')) {
+                    const parts = roomName.split('_');
+                    const otherUser = parts.find(p => p !== 'dm' && p !== username);
+                    input.placeholder = `Private message to @${otherUser}...`;
+                } else {
+                    input.placeholder = `Message #${roomName}...`;
                 }
-            });
-            // 1. Listen for the 'load history' event
-            socket.on('load history', function(history) {
-                history.forEach(function(msg) {
-                    addMessageToScreen(msg);
+            }
+
+            // --- MEDIA FUNCTIONS ---
+            window.uploadMedia = function() {
+                const fileInput = document.getElementById('file-input');
+                const file = fileInput.files[0];
+                
+                if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                        alert("File is too large! Max 10MB.");
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const messageData = { user: username, text: e.target.result, avatar: avatar };
+                        socket.emit('chat message', messageData);
+                    };
+                    reader.readAsDataURL(file); 
+                }
+                fileInput.value = ''; 
+            }
+
+            function addMessageToScreen(msg) {
+                let item = document.getElementById(`msg-${msg._id}`);
+                let isNewMessage = false;
+
+                if (!item) {
+                    isNewMessage = true;
+                    item = document.createElement('div');
+                    item.id = `msg-${msg._id}`;
+                    item.style.marginBottom = "15px";
+                    item.style.display = "flex";
+                }
+
+                if (msg.user === 'System') {
+                    const timeString = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    item.style.color = '#ff5555';
+                    item.innerHTML = `<span style="font-size: 0.8em; color: #888;">[${timeString}]</span> <em>${msg.text}</em>`;
+                    if (isNewMessage) {
+                        container.appendChild(item);
+                        container.scrollTop = container.scrollHeight;
+                    }
+                    return;
+                }
+
+                const userAvatar = msg.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${msg.user}`;
+                const timeString = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const isAdmin = localStorage.getItem('username') === 'Sergslow';
+                const deleteBtn = isAdmin ? `<span onclick="deleteMessage('${msg._id}')" style="cursor:pointer; color:red; margin-left:10px;">🗑️</span>` : '';
+
+                // --- MEDIA DETECTION LOGIC ---
+                let messageBody = msg.text; 
+                
+                const isVideo = msg.text.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(msg.text);
+                const isImage = msg.text.startsWith('data:image') || /\.(jpeg|jpg|gif|png|webp)$/i.test(msg.text);
+
+                if (isVideo) {
+                    messageBody = `<video src="${msg.text}" controls class="media-attachment"></video>`;
+                } else if (isImage) {
+                    messageBody = `<img src="${msg.text}" class="media-attachment">`;
+                }
+
+                let reactionsHtml = '<div style="display:flex; gap:5px; margin-top:5px;">';
+                const emojis = ['👍', '😂', '🔥', '❤️'];
+                emojis.forEach(emoji => {
+                    const users = (msg.reactions && msg.reactions[emoji]) ? msg.reactions[emoji] : [];
+                    const count = users.length;
+                    const activeClass = users.includes(username) ? 'active-reaction' : '';
+                    const countDisplay = count > 0 ? `<span style="margin-left:4px; font-size:0.8em;">${count}</span>` : '';
+                    reactionsHtml += `<button onclick="sendReaction('${msg._id}', '${emoji}')" class="reaction-btn ${activeClass}" title="${users.join(', ')}">${emoji} ${countDisplay}</button>`;
                 });
+                reactionsHtml += '</div>';
+
+                item.innerHTML = `
+                    <img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: baseline; margin-bottom: 2px;">
+                            <strong style="color: white; margin-right: 10px;">${msg.user}</strong>
+                            <span style="font-size: 0.75em; color: #949ba4;">${timeString}</span>
+                            ${deleteBtn}
+                        </div>
+                        <div style="color: #dbdee1; line-height: 1.4; word-wrap: break-word;">${messageBody}</div>
+                        ${reactionsHtml} 
+                    </div>
+                `;
+                if (isNewMessage) {
+                    container.appendChild(item);
+                    container.scrollTop = container.scrollHeight; 
+                }
+            }
+
+            // --- SOCKET LISTENERS ---
+            socket.on('connect', () => {
+                console.log(">> Connected. Restoring session for:", username);
+                socket.emit('user joined', username);
+                socket.emit('join room', currentRoom);
             });
 
-            // 2. Listen for real-time messages
             socket.on('chat message', function(msg) {
                 addMessageToScreen(msg);
-
-                // Play sound ONLY if it's not me
                 if (msg.user !== username) {
                     const audio = document.getElementById('notify-sound');
-                    audio.play().catch(error => {
-                        // Browsers block auto-playing sounds until you interact with the page.
-                        // This catch prevents an ugly error in the console.
-                        console.log("Audio blocked: user hasn't interacted yet.");
-                    });
+                    if(audio) audio.play().catch(e => {}); 
                 }
             });
 
-            // 3. Send message when Enter is pressed
-            input.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && input.value) {
-                    const messageData = { user: username, text: input.value, avatar: avatar };
-                    socket.emit('chat message', messageData);
-                    input.value = '';
-                }
-            });
-            // --- TYPING INDICATOR LOGIC ---
-            const typingDiv = document.getElementById('typing-indicator');
-            let typingTimeout;
-
-            // 1. Listen for key presses
-            input.addEventListener('input', () => {
-                socket.emit('typing', { user: username, room: currentRoom }); // We need to fix room logic slightly below
+            socket.on('load history', function(history) {
+                history.forEach(addMessageToScreen);
             });
 
-            // 2. Listen for "Someone else is typing"
-            socket.on('display typing', (data) => {
-                typingDiv.innerText = `${data.user} is typing...`;
-                
-                // Clear the text after 3 seconds of silence
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    typingDiv.innerText = '';
-                }, 3000);
+            socket.on('update message', (updatedMsg) => {
+                addMessageToScreen(updatedMsg);
             });
-            // 1. Announce ourselves when we load
-            socket.emit('user joined', username);
 
-            // 2. Listen for updates
+            socket.on('delete message', (id) => {
+                const element = document.getElementById(`msg-${id}`);
+                if (element) element.remove();
+            });
+
+            socket.on('new room', (name) => {
+                addRoomToSidebar(name);
+            });
+
+            socket.on('dm notification', (data) => {
+                if (currentRoom.includes(data.sender)) return; 
+                if (!unreadDMs[data.sender]) unreadDMs[data.sender] = 0;
+                unreadDMs[data.sender]++;
+                const audio = document.getElementById('notify-sound');
+                if(audio) audio.play().catch(e => console.log("Audio blocked"));
+                socket.emit('request user list'); 
+            });
+
             socket.on('update user list', (users) => {
                 const list = document.getElementById('users-list');
-                list.innerHTML = ''; // Clear old list
-                
+                list.innerHTML = ''; 
                 users.forEach(user => {
+                    if (user === username) return; 
                     const li = document.createElement('li');
-                    li.style.color = "#2ecc71"; // Online Green
+                    li.className = 'user-item';
+                    li.style.cursor = "pointer";
                     li.style.padding = "5px 10px";
-                    li.innerText = "● " + user;
+                    
+                    li.onclick = () => {
+                        unreadDMs[user] = 0; 
+                        startDM(user);
+                    };
+                    const count = unreadDMs[user] || 0;
+                    const badge = count > 0 ? `<span class="notification-badge">${count}</span>` : '';
+                    li.innerHTML = `<span style="display:flex; align-items:center;"><span style="font-size: 1.2em; margin-right: 5px;">💬</span> ${user}</span>${badge}`;
+                    li.onmouseover = () => { li.style.backgroundColor = '#35373c'; };
+                    li.onmouseout = () => { li.style.backgroundColor = 'transparent'; };
                     list.appendChild(li);
                 });
             });
 
+            socket.on('display typing', (data) => {
+                const typingDiv = document.getElementById('typing-indicator');
+                typingDiv.innerText = `${data.user} is typing...`;
+                setTimeout(() => { typingDiv.innerText = ''; }, 3000);
+            });
+
+            const input = document.getElementById('message-input');
+            const container = document.getElementById('message-container');
+
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && input.value) {
+                    socket.emit('chat message', { user: username, text: input.value, avatar: avatar });
+                    input.value = '';
+                }
+            });
+
+            input.addEventListener('input', () => {
+                socket.emit('typing', { user: username, room: currentRoom });
+            });
+
+            // Make helpers global
+            window.sendReaction = function(messageId, emoji) {
+                socket.emit('add reaction', { messageId, emoji, user: username});
+            }
+            window.toggleSidebar = function() { document.querySelector('.servers-list').classList.toggle('active'); }
+            window.deleteMessage = function(id) { if(confirm("Delete this?")) socket.emit('delete message', id); }
+            window.createRoom = async function() {
+                const name = prompt("Enter room name (letters only):");
+                if (name) {
+                    await fetch('/rooms', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name }) });
+                }
+            }
+            window.startDM = function(targetUser) {
+                const roomName = ['dm', username, targetUser].sort().join('_');
+                joinRoom(roomName);
+            }
+            window.addRoomToSidebar = function(name) {
+                const list = document.getElementById('rooms-list');
+                const li = document.createElement('li');
+                li.className = 'server-name';
+                li.innerHTML = `<a href="#" onclick="joinRoom('${name}')"># ${name}</a>`;
+                list.appendChild(li);
+            }
+
+            // Start up
+            async function loadRooms() {
+                const res = await fetch('/rooms');
+                const rooms = await res.json();
+                document.getElementById('rooms-list').innerHTML = '';
+                rooms.forEach(room => addRoomToSidebar(room.name));
+            }
+            loadRooms();
         </script>
     </body>
 </html>

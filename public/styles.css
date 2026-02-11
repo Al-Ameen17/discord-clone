@@ -163,6 +163,31 @@ body {
     cursor: pointer;
 }
 
+/* REACTION BUTTONS */
+.reaction-btn {
+    background: #2b2d31;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.reaction-btn:hover {
+    background: #404249;
+    border-color: #404249;
+}
+
+.reaction-btn.active-reaction {
+    background: rgba(88, 101, 242, 0.15); /* Blue tint */
+    border-color: #5865F2;
+    color: #5865F2;
+}
+
 /* When screen is smaller than 768px (Tablets/Phones) */
 @media (max-width: 768px) {
     .servers-list {
@@ -186,4 +211,37 @@ body {
     .input-area {
         padding-bottom: 20px; /* Extra padding for mobile keyboards */
     }
+}
+
+/* Notification Badge */
+.user-item {
+    display: flex;
+    justify-content: space-between; /* Push badge to the far right */
+    align-items: center;
+    width: 100%;
+}
+
+.notification-badge {
+    background-color: #f23f42; /* Discord Red */
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px; /* Pill shape */
+    min-width: 18px;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* MEDIA PLAYERS */
+.media-attachment {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+    margin-top: 5px;
+    display: block;
+}
+
+.emoji-item:hover {
+    background-color: #404249;
 }

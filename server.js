@@ -3,54 +3,58 @@ const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
-const bcrypt = require('bcryptjs'); // New security tool
-const activeUsers = new Set();
+
+// FIX 1: Increase message size limit to 10MB for images
+const io = require('socket.io')(http, {
+    maxHttpBufferSize: 1e8 // 100 MB
+});
+
+const bcrypt = require('bcryptjs'); 
 
 app.use(express.static('public'));
-app.use(express.json()); // Allows server to read JSON data sent from login page
+app.use(express.json());
 
-const mongoURI = process.env.MONGO_URI; 
-mongoose.connect(mongoURI)
-    .then(() => console.log('✅ Connected to MongoDB!'))
-    .catch(err => console.error('❌ MongoDB Connection Error:', err));
-
-mongoose.connect(mongoURI).then(async () => {
-    console.log('✅ Connected to MongoDB!');
-    
-    // Check if rooms exist, if not, create default
-    const count = await Room.countDocuments();
-    if (count === 0) {
-        await new Room({ name: 'general' }).save();
-        await new Room({ name: 'gaming' }).save();
-        await new Room({ name: 'music' }).save();
-        console.log("Created default rooms");
-    }
-});
-// --- 1. DATABSE MODELS ---
-// Message Model (Keep this)
+// --- 1. DEFINE MODELS FIRST (Critical Order Fix) ---
 const Message = mongoose.model('Message', new mongoose.Schema({
     user: String,
     text: String,
     room: String,
     avatar: String,
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
+    reactions: { type: Map, of: [String], default: {}}
 }));
 
-// User Model
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     avatar: { type: String } 
 }));
 
-// Room Model
 const Room = mongoose.model('Room', new mongoose.Schema({
     name: { type: String, required: true, unique: true }
 }));
 
-// --- 2. AUTHENTICATION ROUTES ---
-// Register Route (Generate avatar on sign-up)
+// --- 2. CONNECT TO DB & SEED ROOMS ---
+const mongoURI = process.env.MONGO_URI; 
+mongoose.connect(mongoURI)
+    .then(async () => {
+        console.log('✅ Connected to MongoDB!');
+        
+        // Check if rooms exist, if not, create default
+        const count = await Room.countDocuments();
+        if (count === 0) {
+            await new Room({ name: 'general' }).save();
+            await new Room({ name: 'gaming' }).save();
+            await new Room({ name: 'music' }).save();
+            console.log("Created default rooms");
+        }
+    })
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+// --- 3. ROUTES ---
+// Global set to track online users
+const activeUsers = new Set();
+
 app.post('/register', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -58,20 +62,16 @@ app.post('/register', async (req, res) => {
         if (existingUser) return res.status(400).json({ success: false, message: "Username taken" });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // GENERATE AVATAR: distinct visual style based on username
         const avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
         
         const newUser = new User({ username, password: hashedPassword, avatar });
         await newUser.save();
-        
-        res.json({ success: true, message: "User created!" });
+        res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ success: false, message: "Error registering" });
+        res.status(500).json({ success: false });
     }
 });
 
-// Login Route (Send avatar to client)
 app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -80,38 +80,27 @@ app.post('/login', async (req, res) => {
         if (!user || !await bcrypt.compare(password, user.password)) {
             return res.status(400).json({ success: false, message: "Invalid credentials" });
         }
-
-        // MIGRATION FIX: If old user has no avatar, give them one now
         if (!user.avatar) {
             user.avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
             await user.save();
         }
-
-        // Send both username AND avatar
         res.json({ success: true, username: user.username, avatar: user.avatar });
     } catch (err) {
-        res.status(500).json({ success: false, message: "Error logging in" });
+        res.status(500).json({ success: false });
     }
 });
 
-//Room Routes
-// Get all rooms
 app.get('/rooms', async (req, res) => {
     const rooms = await Room.find();
     res.json(rooms);
 });
 
-// Create a room
 app.post('/rooms', async (req, res) => {
     try {
         const { name } = req.body;
-        // Simple validation: strictly alphanumeric
         if (!/^[a-z0-9]+$/i.test(name)) return res.status(400).json({success: false});
-
         const newRoom = new Room({ name });
         await newRoom.save();
-
-        // Broadcast the new room to everyone immediately
         io.emit('new room', name);
         res.json({ success: true });
     } catch(err) {
@@ -119,9 +108,8 @@ app.post('/rooms', async (req, res) => {
     }
 });
 
-// --- 3. SOCKET IO (CHAT LOGIC) ---
+// --- 4. SOCKET IO ---
 io.on('connection', (socket) => {
-    // Join Default Room
     let currentRoom = 'general';
     socket.join(currentRoom);
 
@@ -129,7 +117,7 @@ io.on('connection', (socket) => {
     Message.find({ room: currentRoom }).sort({ timestamp: 1 }).limit(50)
         .then(messages => socket.emit('load history', messages));
 
-    // Handle Room Switching
+    // Join Room
     socket.on('join room', (newRoom) => {
         socket.leave(currentRoom);
         socket.join(newRoom);
@@ -138,13 +126,10 @@ io.on('connection', (socket) => {
         Message.find({ room: newRoom }).sort({ timestamp: 1 }).limit(50)
             .then(messages => socket.emit('load history', messages));
             
-        socket.emit('chat message', { 
-            user: 'System', 
-            text: `You joined #${newRoom}` 
-        });
+        socket.emit('chat message', { user: 'System', text: `You joined #${newRoom}` });
     });
 
-    // Handle Chat Messages
+    // Chat Message
     socket.on('chat message', (msg) => {
         const newMessage = new Message({
             user: msg.user,
@@ -155,38 +140,69 @@ io.on('connection', (socket) => {
 
         newMessage.save().then((savedMessage) => {
             io.to(currentRoom).emit('chat message', savedMessage);
+
+            // DEBUG: Print what room the server THINKS we are in
+            console.log(`[DEBUG] Message sent in room: ${currentRoom}`);
+
+            if (currentRoom.startsWith('dm_')) {
+                const parts = currentRoom.split('_');
+                const targetUser = parts.find(part => part !== 'dm' && part !== msg.user);
+                
+                if (targetUser) {
+                    console.log(`🔔 RINGING BELL: Sending notification to notify_${targetUser}`);
+                    io.to("notify_" + targetUser).emit('dm notification', { sender: msg.user });
+                } else {
+                    console.log(`[DEBUG] Could not find target user in ${currentRoom}`);
+                }
+            }
         });
     });
-    // Handle Message Deletion
+
     socket.on('delete message', (messageId) => {
-        // 1. Delete from Database
-        Message.findByIdAndDelete(messageId)
-            .then(() => {
-                // 2. Tell everyone to remove it from their screen
-                io.emit('delete message', messageId);
-            })
-            .catch(err => console.error("Delete failed:", err));
+        Message.findByIdAndDelete(messageId).then(() => {
+            io.emit('delete message', messageId);
+        });
     });
-    // Handle Typing
+
     socket.on('typing', (data) => {
-        // Broadcast to everyone in the room EXCEPT the sender
         socket.to(data.room).emit('display typing', data);
     });
-    // User announces presence
-    socket.on('user joined', (username) => {
-    socket.username = username; // Attach name to this socket
-    activeUsers.add(username);
 
-    // Tell everyone the new list
-    io.emit('update user list', Array.from(activeUsers));
+    // FIX 3: Re-register user on connection
+    socket.on('user joined', (username) => {
+        socket.username = username; 
+        activeUsers.add(username);
+        socket.join("notify_" + username); // IMPORTANT: Join the notification channel
+        console.log(`User ${username} joined notification channel`);
+        io.emit('update user list', Array.from(activeUsers));
     });
 
-    // Handle Disconnect
     socket.on('disconnect', () => {
-    if (socket.username) {
-        activeUsers.delete(socket.username);
-        io.emit('update user list', Array.from(activeUsers));
-    }
+        if (socket.username) {
+            activeUsers.delete(socket.username);
+            io.emit('update user list', Array.from(activeUsers));
+        }
+    });
+
+    socket.on('add reaction', async ({ messageId, emoji, user }) => {
+        try {
+            const msg = await Message.findById(messageId);
+            if (!msg) return;
+            if (!msg.reactions) msg.reactions = new Map();
+
+            let users = msg.reactions.get(emoji) || [];
+            if (users.includes(user)) users = users.filter(u => u !== user);
+            else users.push(user);
+
+            msg.reactions.set(emoji, users);
+            await msg.save();
+            io.emit('update message', msg);
+        } catch (err) { console.error(err); }
+    });
+
+    socket.on('request user list', () => {
+        // Send the list ONLY to the person who asked (saves bandwidth)
+        socket.emit('update user list', Array.from(activeUsers));
     });
 });
 
