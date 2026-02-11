@@ -147,3 +147,43 @@ body {
     background-color: #1a1b1e; 
     border-radius: 4px;
 }
+
+/* MOBILE STYLES */
+#menu-btn {
+    display: none; /* Hidden on PC */
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 100;
+    background: #2b2d31;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* When screen is smaller than 768px (Tablets/Phones) */
+@media (max-width: 768px) {
+    .servers-list {
+        position: absolute;
+        left: -250px; /* Hide off-screen */
+        height: 100%;
+        z-index: 99;
+        transition: left 0.3s; /* Smooth slide animation */
+        width: 240px;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+    }
+
+    .servers-list.active {
+        left: 0; /* Slide in */
+    }
+
+    #menu-btn {
+        display: block; /* Show button */
+    }
+
+    .input-area {
+        padding-bottom: 20px; /* Extra padding for mobile keyboards */
+    }
+}

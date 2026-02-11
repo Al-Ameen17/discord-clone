@@ -15,6 +15,18 @@ mongoose.connect(mongoURI)
     .then(() => console.log('✅ Connected to MongoDB!'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
+mongoose.connect(mongoURI).then(async () => {
+    console.log('✅ Connected to MongoDB!');
+    
+    // Check if rooms exist, if not, create default
+    const count = await Room.countDocuments();
+    if (count === 0) {
+        await new Room({ name: 'general' }).save();
+        await new Room({ name: 'gaming' }).save();
+        await new Room({ name: 'music' }).save();
+        console.log("Created default rooms");
+    }
+});
 // --- 1. DATABSE MODELS ---
 // Message Model (Keep this)
 const Message = mongoose.model('Message', new mongoose.Schema({
@@ -30,6 +42,11 @@ const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     avatar: { type: String } 
+}));
+
+// Room Model
+const Room = mongoose.model('Room', new mongoose.Schema({
+    name: { type: String, required: true, unique: true }
 }));
 
 // --- 2. AUTHENTICATION ROUTES ---
@@ -77,6 +94,31 @@ app.post('/login', async (req, res) => {
     }
 });
 
+//Room Routes
+// Get all rooms
+app.get('/rooms', async (req, res) => {
+    const rooms = await Room.find();
+    res.json(rooms);
+});
+
+// Create a room
+app.post('/rooms', async (req, res) => {
+    try {
+        const { name } = req.body;
+        // Simple validation: strictly alphanumeric
+        if (!/^[a-z0-9]+$/i.test(name)) return res.status(400).json({success: false});
+
+        const newRoom = new Room({ name });
+        await newRoom.save();
+
+        // Broadcast the new room to everyone immediately
+        io.emit('new room', name);
+        res.json({ success: true });
+    } catch(err) {
+        res.status(500).json({ success: false });
+    }
+});
+
 // --- 3. SOCKET IO (CHAT LOGIC) ---
 io.on('connection', (socket) => {
     // Join Default Room
@@ -111,8 +153,8 @@ io.on('connection', (socket) => {
             avatar: msg.avatar
         });
 
-        newMessage.save().then(() => {
-            io.to(currentRoom).emit('chat message', msg);
+        newMessage.save().then((savedMessage) => {
+            io.to(currentRoom).emit('chat message', savedMessage);
         });
     });
     // Handle Message Deletion
