@@ -31,6 +31,14 @@
 
         <script src="/socket.io/socket.io.js"></script>
         <script>
+            // CHECK LOGIN STATUS
+            const username = localStorage.getItem('username');
+            
+            // If no username is saved, kick them back to login page
+            if (!username) {
+                window.location.href = '/login.html';
+            }
+
             var socket = io(); // Initialize socket FIRST so the function can use it
 
             // Define the function that the buttons click
@@ -44,9 +52,6 @@
                 // Optional: Update the placeholder text to match the room
                 document.getElementById('message-input').placeholder = `Message #${roomName}...`;
             }
-
-            // Ask for username
-            const username = prompt("Enter your username:") || "Anonymous";
 
             const input = document.getElementById('message-input');
             const container = document.getElementById('message-container');

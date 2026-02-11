@@ -1,53 +1,91 @@
-require('dotenv').config(); // Load environment variables
+require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose'); // The database tool
+const mongoose = require('mongoose');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
+const bcrypt = require('bcryptjs'); // New security tool
 
 app.use(express.static('public'));
+app.use(express.json()); // Allows server to read JSON data sent from login page
 
-// 1. Connect to MongoDB
-// use process.env.MONGO_URI so we don't expose the password in the code
 const mongoURI = process.env.MONGO_URI; 
-
 mongoose.connect(mongoURI)
     .then(() => console.log('✅ Connected to MongoDB!'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// 2. Define what a "Message" looks like
-const messageSchema = new mongoose.Schema({
+// --- 1. DATABSE MODELS ---
+// Message Model (Keep this)
+const Message = mongoose.model('Message', new mongoose.Schema({
     user: String,
     text: String,
     room: String,
     timestamp: { type: Date, default: Date.now }
+}));
+
+// User Model (New!)
+const User = mongoose.model('User', new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true }
+}));
+
+// --- 2. AUTHENTICATION ROUTES ---
+// Register Route
+app.post('/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        // Check if user exists
+        const existingUser = await User.findOne({ username });
+        if (existingUser) return res.status(400).json({ success: false, message: "Username taken" });
+
+        // Encrypt password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Save user
+        const newUser = new User({ username, password: hashedPassword });
+        await newUser.save();
+        
+        res.json({ success: true, message: "User created!" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error registering" });
+    }
 });
 
-const Message = mongoose.model('Message', messageSchema);
+// Login Route
+app.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        
+        // Check user and password
+        if (!user || !await bcrypt.compare(password, user.password)) {
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
+        }
 
+        res.json({ success: true, username: user.username });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error logging in" });
+    }
+});
+
+// --- 3. SOCKET IO (CHAT LOGIC) ---
 io.on('connection', (socket) => {
-    console.log('A user connected!');
-    
-    // Default room
+    // Join Default Room
     let currentRoom = 'general';
     socket.join(currentRoom);
 
-    // 3. Load History from Database (Last 50 messages)
+    // Load History
     Message.find({ room: currentRoom }).sort({ timestamp: 1 }).limit(50)
-        .then(messages => {
-            socket.emit('load history', messages);
-        });
+        .then(messages => socket.emit('load history', messages));
 
+    // Handle Room Switching
     socket.on('join room', (newRoom) => {
         socket.leave(currentRoom);
         socket.join(newRoom);
         currentRoom = newRoom;
         
-        // Load history for the NEW room
         Message.find({ room: newRoom }).sort({ timestamp: 1 }).limit(50)
-            .then(messages => {
-                socket.emit('load history', messages);
-            });
+            .then(messages => socket.emit('load history', messages));
             
         socket.emit('chat message', { 
             user: 'System', 
@@ -55,8 +93,8 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Handle Chat Messages
     socket.on('chat message', (msg) => {
-        // 4. Save the message to MongoDB
         const newMessage = new Message({
             user: msg.user,
             text: msg.text,
@@ -64,13 +102,8 @@ io.on('connection', (socket) => {
         });
 
         newMessage.save().then(() => {
-            // Once saved, send it to everyone in the room
             io.to(currentRoom).emit('chat message', msg);
         });
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
     });
 });
 

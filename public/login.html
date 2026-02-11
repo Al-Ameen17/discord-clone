@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - DihCord</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body style="display: flex; justify-content: center; align-items: center;">
+
+    <div style="background: #2b2d31; padding: 40px; border-radius: 8px; width: 300px; text-align: center;">
+        <h2 style="color: white;">Welcome Back!</h2>
+        <input type="text" id="username" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 4px; border: none;">
+        <input type="password" id="password" placeholder="Password" style="width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 4px; border: none;">
+        
+        <button onclick="login()" style="width: 100%; padding: 10px; background: #5865F2; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Log In</button>
+        <p style="color: #aaa; margin-top: 10px; font-size: 0.9em;">Need an account? <a href="#" onclick="register()" style="color: #00b0f4;">Register</a></p>
+        <p id="error-msg" style="color: #ff5555; display: none;"></p>
+    </div>
+
+    <script>
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                // Save user info locally and go to chat
+                localStorage.setItem('username', data.username);
+                window.location.href = '/';
+            } else {
+                showError(data.message);
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            const res = await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert("Account created! Please log in.");
+            } else {
+                showError(data.message);
+            }
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.innerText = msg;
+            el.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
