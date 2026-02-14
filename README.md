@@ -53,15 +53,19 @@ A secure, full-stack, real-time communication platform inspired by Discord. Buil
 ## 📸 Screenshots
 
 Login
+
 <img width="556" height="590" alt="Screenshot 2026-02-14 071708" src="https://github.com/user-attachments/assets/8c7e7ff8-a430-4e10-995d-5eb1eea686dc" />
 
 Chat
-<img width="543" height="502" alt="Screenshot 2026-02-14 071011" src="https://github.com/user-attachments/assets/4b5b3490-b656-4097-89c6-d9feee37ba33" />
+
+<img width="1854" height="993" alt="Screenshot 2026-02-14 070951" src="https://github.com/user-attachments/assets/38214d2d-6f5a-4a64-b1fd-45eaf6ee88dd" />
 
 Voice
+
 <img width="543" height="502" alt="Screenshot 2026-02-14 071011" src="https://github.com/user-attachments/assets/f76e556e-d415-459b-b43e-192015225f97" />
 
 Profile
+
 <img width="527" height="514" alt="Screenshot 2026-02-14 071038" src="https://github.com/user-attachments/assets/073db643-527c-493d-bb87-c8b5450bae2c" />
 
 
