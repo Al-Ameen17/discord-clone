@@ -46,43 +46,75 @@ body {
     border-radius: 5px 25px 25px 5px;
     flex-shrink: 0;
     margin: 10px 0 10px 5px;
+    overflow-y: auto;
 }
 
-.servers-list h3 {
+/* Header Styling */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 10px;
+    margin-top: 15px;
+    margin-bottom: 5px;
+}
+
+.section-header h3 {
     text-transform: uppercase;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 1px;
     color: var(--accent);
-    margin: 20px 10px 10px 10px;
+    margin: 0 10px;
 }
+
+.add-btn {
+    background: none; 
+    border: none; 
+    color: #949ba4; 
+    cursor: pointer; 
+    font-size: 16px;
+}
+.add-btn:hover { color: white; }
 
 .servers-list ul { list-style: none; padding: 0; margin: 0; }
 
-/* BUBBLY CHANNEL BUTTONS */
+/* CHANNEL BUTTONS */
 .servers-list li a, .user-item {
     display: flex;
     align-items: center;
-    padding: 10px 15px;
-    margin-bottom: 5px;
-    border-radius: var(--radius-lg); /* Rounded pills */
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    border-radius: 5px;
     color: var(--text-muted);
     text-decoration: none;
     font-weight: 500;
     transition: all 0.2s ease;
+    font-size: 0.95rem;
 }
 
 .servers-list li a:hover, .user-item:hover {
     background-color: var(--bg-input);
     color: var(--text-header);
-    transform: translateX(5px); /* Little slide effect */
 }
 
 .servers-list li a::before {
     content: "#";
     margin-right: 8px;
     font-weight: bold;
-    color: var(--accent);
+    color: var(--text-muted);
+    font-size: 1.1em;
+}
+
+/* VOICE CHANNEL ITEMS */
+.voice-item a::before {
+    content: "🔊" !important;
+    font-size: 0.8em;
+}
+
+.voice-item.active-voice a {
+    color: white;
+    background: rgba(35, 165, 89, 0.2);
 }
 
 /* MAIN CHAT AREA */
@@ -256,7 +288,6 @@ button { font-family: 'Inter', sans-serif; }
     }
 
     /* 3. FIXED INPUT AREA FOR MOBILE */
-    /* This ensures it floats above everything at the bottom */
     .input-area {
         position: fixed;
         bottom: 0;
@@ -269,7 +300,6 @@ button { font-family: 'Inter', sans-serif; }
     }
 
     /* 4. PADDING FOR MESSAGES */
-    /* Push messages up so they aren't hidden behind the fixed input */
     #message-container {
         padding-bottom: 140px !important; 
     }
@@ -289,11 +319,55 @@ button { font-family: 'Inter', sans-serif; }
 .reply-quote { border-left-color: var(--text-muted); color: var(--text-muted); }
 .msg-actions { background: var(--bg-sidebar); padding: 4px 8px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
 
+/* VOICE DOCK (Active Call Area) */
+/* This sits above the user panel like a footer */
+.voice-dock {
+    display: none; /* Hidden unless connected */
+    background: #232428;
+    padding: 10px;
+    border-top: 1px solid #334155;
+    margin-top: auto; /* Push to bottom */
+}
+
+.voice-status {
+    color: #22c55e;
+    font-size: 0.8rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.voice-room-name {
+    color: white;
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.voice-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.control-btn {
+    flex: 1;
+    background: #2b2d31;
+    border: none;
+    padding: 8px;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.control-btn:hover { background: #3f4147; }
+.btn-danger { background: #da373c; }
+.btn-danger:hover { background: #ef4444; }
+
+
 /* USER PANEL */
 .user-panel {
-    margin-top: auto; 
-    padding-top: 15px;
-    border-top: 1px solid #334155;
+    background: #232428; /* Slightly darker to match voice dock */
+    padding: 15px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -409,62 +483,3 @@ button { font-family: 'Inter', sans-serif; }
     width: 30px; height: 30px; border-radius: 50%;
     line-height: 30px;
 }
-
-/* VOICE CHANNEL */
-.voice-channel {
-    margin-top: 20px;
-    padding: 10px;
-    background: rgba(0,0,0,0.2);
-    border-radius: 10px;
-}
-
-.voice-header {
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    font-weight: bold;
-    margin-bottom: 5px;
-    display: flex;
-    justify-content: space-between;
-}
-
-.voice-btn {
-    width: 100%;
-    padding: 8px;
-    background: var(--bg-input);
-    border: none;
-    border-radius: 5px;
-    color: var(--text-normal);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: 0.2s;
-}
-
-.voice-btn:hover { background: var(--hover); color: white; }
-
-.voice-active {
-    background: #23a559 !important; 
-    color: white !important;
-}
-
-.voice-controls {
-    display: none; 
-    margin-top: 5px;
-    display: flex; 
-    gap: 5px;
-}
-
-.control-btn {
-    flex: 1;
-    background: #2b2d31;
-    border: none;
-    padding: 5px;
-    border-radius: 5px;
-    color: white;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
-.control-btn:hover { background: #3f4147; }
-.btn-danger { background: #da373c; }
-.btn-danger:hover { background: #ef4444; }

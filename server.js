@@ -7,7 +7,6 @@ const fs = require('fs');
 const app = express();
 
 // --- CRITICAL FIX FOR RENDER DEPLOYMENT ---
-// This prevents the "X-Forwarded-For" crash by trusting the proxy
 app.set('trust proxy', 1); 
 
 const http = require('http').createServer(app);
@@ -94,8 +93,10 @@ const User = mongoose.model('User', new mongoose.Schema({
     status: { type: String, default: "online" }
 }));
 
+// UPDATED: Room Schema supports types
 const Room = mongoose.model('Room', new mongoose.Schema({
-    name: { type: String, required: true, unique: true }
+    name: { type: String, required: true, unique: true },
+    type: { type: String, enum: ['text', 'voice'], default: 'text' } // 'text' or 'voice'
 }));
 
 // --- DB CONNECTION ---
@@ -103,9 +104,11 @@ mongoose.connect(process.env.MONGO_URI)
     .then(async () => {
         console.log('✅ Connected to MongoDB!');
         if (await Room.countDocuments() === 0) {
-            await new Room({ name: 'general' }).save();
-            await new Room({ name: 'gaming' }).save();
-            await new Room({ name: 'music' }).save();
+            // Default Channels
+            await new Room({ name: 'general', type: 'text' }).save();
+            await new Room({ name: 'gaming', type: 'text' }).save();
+            await new Room({ name: 'music', type: 'text' }).save();
+            await new Room({ name: 'Lounge', type: 'voice' }).save(); // Default Voice
         }
     })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
@@ -140,7 +143,6 @@ app.post('/login', async (req, res) => {
         }
 
         if (!process.env.JWT_SECRET) {
-            console.error("JWT_SECRET missing");
             return res.status(500).json({ success: false, message: "Server configuration error" });
         }
 
@@ -199,15 +201,18 @@ app.get('/rooms', authenticateToken, async (req, res) => {
     res.json(rooms);
 });
 
+// UPDATED: Create Room (Handles Text or Voice)
 app.post('/rooms', authenticateToken, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, type } = req.body; // Accept type
         const cleanName = xss(name);
-        if (!/^[a-z0-9]+$/i.test(cleanName)) return res.status(400).json({success: false});
+        const cleanType = type === 'voice' ? 'voice' : 'text';
+
+        if (!/^[a-z0-9-]+$/i.test(cleanName)) return res.status(400).json({success: false, message: "Invalid name"});
         
-        const newRoom = new Room({ name: cleanName });
+        const newRoom = new Room({ name: cleanName, type: cleanType });
         await newRoom.save();
-        io.emit('new room', cleanName);
+        io.emit('new room', { name: cleanName, type: cleanType }); // Emit object, not just string
         res.json({ success: true });
     } catch(err) { res.status(500).json({ success: false }); }
 });
@@ -329,6 +334,7 @@ io.on('connection', (socket) => {
         } catch (err) { console.error(err); }
     });
 
+    // Voice Chat - Supports multiple rooms dynamically
     socket.on('join-voice', (roomId, peerId) => {
         socket.join(roomId);
         socket.to(roomId).emit('user-connected-voice', peerId); 

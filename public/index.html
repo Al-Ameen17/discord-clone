@@ -10,28 +10,36 @@
         <audio id="notify-sound" src="https://assets.mixkit.co/active_storage/sfx/2848/2848.wav"></audio>
         
         <div class="servers-list">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding-right: 10px;">
-                <h3>Rooms</h3>
-                <button onclick="createRoom()" style="background: none; border: none; color: #949ba4; cursor: pointer; font-size: 16px;">+</button>
+            
+            <div class="section-header">
+                <h3>Text Channels</h3>
+                <button onclick="createRoom('text')" class="add-btn">+</button>
             </div>
-            <ul id="rooms-list"></ul>
+            <ul id="text-channels-list"></ul>
 
-            <h3 style="margin-top: 20px;">Direct Messages</h3>
+            <div class="section-header">
+                <h3>Voice Channels</h3>
+                <button onclick="createRoom('voice')" class="add-btn">+</button>
+            </div>
+            <ul id="voice-channels-list"></ul>
+
+            <div class="section-header">
+                <h3>Direct Messages</h3>
+            </div>
             <ul id="dms-list"></ul>
 
-            <h3 style="margin-top: 20px;">Online Users</h3>
+            <div class="section-header">
+                <h3>Online Users</h3>
+            </div>
             <ul id="users-list"></ul>
 
-            <div class="voice-channel">
-                <div class="voice-header">VOICE CHANNELS</div>
-                <button id="join-voice-btn" class="voice-btn" onclick="joinVoice()">
-                    🔊 General Voice
-                </button>
-                
-                <div id="voice-controls" style="display:none; margin-top:5px; gap:5px; flex-wrap:wrap;">
-                    <button class="control-btn" onclick="toggleMute()" id="mute-btn">🎤 Mute</button>
-                    <button class="control-btn" onclick="shareScreen()" id="screen-btn" style="background:#5865F2;">🖥️ Share</button>
-                    <button class="control-btn btn-danger" onclick="leaveVoice()">✖ Leave</button>
+            <div id="voice-dock" class="voice-dock">
+                <span class="voice-status">Voice Connected</span>
+                <span id="active-voice-room" class="voice-room-name">General</span>
+                <div class="voice-controls">
+                    <button class="control-btn" onclick="toggleMute()" id="mute-btn">🎤</button>
+                    <button class="control-btn" onclick="shareScreen()" id="screen-btn">🖥️</button>
+                    <button class="control-btn btn-danger" onclick="leaveVoice()">✖</button>
                 </div>
             </div>
 
@@ -48,7 +56,7 @@
         </div>
 
         <div class="content">
-            <button id="menu-btn" onclick="toggleSidebar()" style="display:none;">☰</button>
+            <button id="menu-btn" onclick="toggleSidebar()">☰</button>
             
             <div id="message-container">
                 <p><strong>System:</strong> Welcome to the server!</p>
@@ -105,7 +113,6 @@
             import { EmojiButton } from 'https://unpkg.com/@joeattardi/emoji-button@4.6.4/dist/index.js';
 
             // --- SECURITY & INITIALIZATION ---
-            // 1. Check for Token on startup
             const token = localStorage.getItem('token');
             const username = localStorage.getItem('username');           
             const avatar = localStorage.getItem('avatar'); 
@@ -114,18 +121,16 @@
                 window.location.href = '/login.html';
             }
 
-            // 2. Connect to Socket.IO with Token Authentication
             window.socket = io({
                 auth: { token: token } 
             });
 
             let currentRoom = localStorage.getItem('lastRoom') || 'general';
             let unreadDMs = {}; 
+            let currentVoiceRoom = null;
 
-            // --- IMMEDIATE STARTUP ---
             updateRoomUI(currentRoom);
 
-            // --- HELPER: Get Headers for API Calls ---
             function getAuthHeaders() {
                 return { 
                     'Content-Type': 'application/json',
@@ -133,7 +138,6 @@
                 };
             }
 
-            // --- SETUP EMOJI PICKER ---
             const picker = new EmojiButton({
                 position: 'top-start',
                 theme: 'dark', 
@@ -151,7 +155,6 @@
                 picker.togglePicker(trigger);
             }
 
-            // --- CORE CHAT LOGIC ---
             window.joinRoom = function(roomName) {
                 currentRoom = roomName;
                 localStorage.setItem('lastRoom', roomName);
@@ -160,7 +163,6 @@
                 socket.emit('join room', roomName);
             }
 
-            // --- DM SYSTEM ---
             const savedDMs = JSON.parse(localStorage.getItem('openDMs')) || [];
             
             function renderDMs() {
@@ -168,20 +170,18 @@
                 list.innerHTML = '';
                 savedDMs.forEach(user => {
                     const li = document.createElement('li');
-                    li.className = 'server-name';
+                    li.className = 'user-item';
                     
-                    // Check for unread messages
                     const count = unreadDMs[user] || 0;
                     const badge = count > 0 ? `<span class="notification-badge" style="background:var(--danger); padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px;">${count}</span>` : '';
                     
-                    li.innerHTML = `<a href="#" onclick="startDM('${user}')">@ ${user} ${badge}</a>`;
+                    li.innerHTML = `<a href="#" onclick="startDM('${user}')" style="width:100%;">@ ${user} ${badge}</a>`;
                     
-                    // Add a tiny "x" to close DM
                     const closeBtn = document.createElement('span');
                     closeBtn.innerHTML = '×';
                     closeBtn.style.cssText = 'float:right; cursor:pointer; color:#666; padding:0 5px;';
                     closeBtn.onclick = (e) => {
-                        e.stopPropagation(); // Don't trigger the click to join
+                        e.stopPropagation(); 
                         closeDM(user);
                     };
                     li.firstChild.appendChild(closeBtn);
@@ -216,7 +216,6 @@
                 }
             }
 
-            // --- USER PANEL LOGIC ---
             document.getElementById('current-user-name').innerText = username;
             document.getElementById('current-user-avatar').src = avatar;
 
@@ -230,7 +229,6 @@
                 }
             }
 
-            // --- AVATAR UPLOAD LOGIC ---
             window.triggerAvatarUpload = function() {
                 document.getElementById('update-avatar-input').click();
             }
@@ -273,7 +271,6 @@
                 avatarInput.addEventListener('change', window.changeAvatar);
             }
 
-            // --- REPLY LOGIC ---
             let replyingTo = null; 
 
             window.startReply = function(id, user, text) {
@@ -301,7 +298,6 @@
                 }
             }
 
-            // --- MEDIA UPLOAD ---
             window.uploadMedia = function() {
                 const fileInput = document.getElementById('file-input');
                 const file = fileInput.files[0];
@@ -320,7 +316,6 @@
                 fileInput.value = ''; 
             }
 
-            // --- PROFILE & STATUS LOGIC ---
             window.viewProfile = async function(targetUser) {
                 const res = await fetch('/get-profile', {
                     method: 'POST',
@@ -374,9 +369,14 @@
             let myScreenStream; 
             const peers = {}; 
 
-            window.joinVoice = function() {
-                const btn = document.getElementById('join-voice-btn');
-                const controls = document.getElementById('voice-controls');
+            // UPDATED: Dynamic Join Voice
+            window.joinVoice = function(roomName) {
+                // If already in a room, leave it first
+                if (currentVoiceRoom) {
+                    leaveVoice();
+                }
+
+                const dock = document.getElementById('voice-dock');
                 
                 const peerId = 'dihcord-' + username.replace(/[^a-zA-Z0-9]/g, '') + '-' + Math.floor(Math.random()*1000);
                 myPeer = new Peer(peerId);
@@ -397,11 +397,18 @@
                             });
                         });
 
-                        socket.emit('join-voice', 'general-voice', id);
-                        
-                        btn.classList.add('voice-active');
-                        btn.innerText = "🔊 Connected";
-                        controls.style.display = 'flex';
+                        // Emit with dynamic room name
+                        socket.emit('join-voice', roomName, id);
+                        currentVoiceRoom = roomName;
+
+                        // UI Updates
+                        dock.style.display = 'block';
+                        document.getElementById('active-voice-room').innerText = roomName;
+
+                        // Highlight active room in list
+                        document.querySelectorAll('.voice-item').forEach(el => el.classList.remove('active-voice'));
+                        const activeLink = document.querySelector(`a[onclick="joinVoice('${roomName}')"]`);
+                        if(activeLink) activeLink.parentElement.classList.add('active-voice');
 
                         socket.on('user-connected-voice', (userId) => {
                             connectToNewUser(userId, stream);
@@ -422,8 +429,7 @@
                     // Stop Sharing
                     myScreenStream.getTracks().forEach(track => track.stop());
                     myScreenStream = null;
-                    document.getElementById('screen-btn').innerText = "🖥️ Share";
-                    document.getElementById('screen-btn').style.background = "#5865F2";
+                    document.getElementById('screen-btn').innerText = "🖥️";
                     return;
                 }
 
@@ -433,12 +439,10 @@
                     audio: false 
                 }).then(stream => {
                     myScreenStream = stream;
-                    document.getElementById('screen-btn').innerText = "🛑 Stop";
-                    document.getElementById('screen-btn').style.background = "#da373c";
+                    document.getElementById('screen-btn').innerText = "🛑";
 
                     stream.getVideoTracks()[0].onended = () => { window.shareScreen(); };
 
-                    // Broadcast screen to peers
                     Object.keys(peers).forEach(userId => {
                         myPeer.call(userId, stream);
                     });
@@ -447,17 +451,19 @@
             }
 
             window.leaveVoice = function() {
-                socket.emit('leave-voice', 'general-voice', myPeer.id);
+                if (!currentVoiceRoom) return;
+                
+                socket.emit('leave-voice', currentVoiceRoom, myPeer.id);
                 socket.off('user-connected-voice');
                 socket.off('user-disconnected-voice');
                 if(myPeer) myPeer.destroy();
                 if(myStream) myStream.getTracks().forEach(track => track.stop());
                 if(myScreenStream) myScreenStream.getTracks().forEach(track => track.stop());
 
-                const btn = document.getElementById('join-voice-btn');
-                btn.classList.remove('voice-active');
-                btn.innerText = "🔊 General Voice";
-                document.getElementById('voice-controls').style.display = 'none';
+                // Reset UI
+                document.getElementById('voice-dock').style.display = 'none';
+                document.querySelectorAll('.voice-item').forEach(el => el.classList.remove('active-voice'));
+                currentVoiceRoom = null;
                 voiceGrid.innerHTML = '';
             }
 
@@ -465,7 +471,7 @@
                 if(myStream) {
                     const track = myStream.getAudioTracks()[0];
                     track.enabled = !track.enabled;
-                    document.getElementById('mute-btn').innerText = track.enabled ? "🎤 Mute" : "🔴 Unmute";
+                    document.getElementById('mute-btn').innerText = track.enabled ? "🎤" : "🔴";
                 }
             }
 
@@ -658,8 +664,9 @@
                 if (element) element.remove();
             });
 
-            socket.on('new room', (name) => {
-                addRoomToSidebar(name);
+            socket.on('new room', (room) => {
+                // Determine which list to add it to
+                addRoomToSidebar(room.name, room.type);
             });
 
             socket.on('dm notification', (data) => {
@@ -686,16 +693,12 @@
                     if (user === username) return; 
                     const li = document.createElement('li');
                     li.className = 'user-item';
-                    li.style.cursor = "pointer";
-                    li.style.padding = "5px 10px";
                     
                     li.onclick = () => {
                         startDM(user);
                     };
                     
                     li.innerHTML = `<span style="display:flex; align-items:center;"><span style="font-size: 1.2em; margin-right: 5px;">💬</span> ${user}</span>`;
-                    li.onmouseover = () => { li.style.backgroundColor = '#35373c'; };
-                    li.onmouseout = () => { li.style.backgroundColor = 'transparent'; };
                     list.appendChild(li);
                 });
             });
@@ -744,23 +747,31 @@
                 }
             }
             
-            window.createRoom = async function() {
-                const name = prompt("Enter room name (letters only):");
+            // UPDATED: Create Room supports type
+            window.createRoom = async function(type = 'text') {
+                const name = prompt(`Enter ${type} channel name (letters only):`);
                 if (name) {
                     await fetch('/rooms', { 
                         method: 'POST', 
                         headers: getAuthHeaders(), 
-                        body: JSON.stringify({ name }) 
+                        body: JSON.stringify({ name, type }) 
                     });
                 }
             }
             
-            window.addRoomToSidebar = function(name) {
-                const list = document.getElementById('rooms-list');
+            // UPDATED: Add Room handles separation
+            window.addRoomToSidebar = function(name, type = 'text') {
                 const li = document.createElement('li');
-                li.className = 'server-name';
-                li.innerHTML = `<a href="#" onclick="joinRoom('${name}')"># ${name}</a>`;
-                list.appendChild(li);
+                
+                if (type === 'voice') {
+                    li.className = 'voice-item';
+                    li.innerHTML = `<a href="#" onclick="joinVoice('${name}')">${name}</a>`;
+                    document.getElementById('voice-channels-list').appendChild(li);
+                } else {
+                    li.className = 'server-name';
+                    li.innerHTML = `<a href="#" onclick="joinRoom('${name}')">${name}</a>`;
+                    document.getElementById('text-channels-list').appendChild(li);
+                }
             }
 
             async function loadRooms() {
@@ -768,8 +779,12 @@
                     headers: getAuthHeaders() 
                 });
                 const rooms = await res.json();
-                document.getElementById('rooms-list').innerHTML = '';
-                rooms.forEach(room => addRoomToSidebar(room.name));
+                
+                // Clear lists
+                document.getElementById('text-channels-list').innerHTML = '';
+                document.getElementById('voice-channels-list').innerHTML = '';
+
+                rooms.forEach(room => addRoomToSidebar(room.name, room.type || 'text'));
             }
             loadRooms();
             
