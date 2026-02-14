@@ -52,14 +52,15 @@ A secure, full-stack, real-time communication platform inspired by Discord. Buil
 
 ## 📸 Screenshots
 
-| Login Screen | Chat Interface |
-|:---:|:---:|
-| ![Login](<img width="556" height="590" alt="Screenshot 2026-02-14 071708" src="https://github.com/user-attachments/assets/8c7e7ff8-a430-4e10-995d-5eb1eea686dc" />) | ![Chat](<img width="567" height="623" alt="Screenshot 2026-02-14 071716" src="https://github.com/user-attachments/assets/e125f9c4-bd18-4aa2-a71c-6f892423ce7a" />) |
+![Login]
+(<img width="556" height="590" alt="Screenshot 2026-02-14 071708" src="https://github.com/user-attachments/assets/8c7e7ff8-a430-4e10-995d-5eb1eea686dc" />)
 
+![Chat]
+(<img width="543" height="502" alt="Screenshot 2026-02-14 071011" src="https://github.com/user-attachments/assets/4b5b3490-b656-4097-89c6-d9feee37ba33" />)
 
-| Voice Call | Profile Card |
-|:---:|:---:|
-| ![Voice](<img width="543" height="502" alt="Screenshot 2026-02-14 071011" src="https://github.com/user-attachments/assets/f76e556e-d415-459b-b43e-192015225f97" />) | ![Profile](<img width="527" height="514" alt="Screenshot 2026-02-14 071038" src="https://github.com/user-attachments/assets/073db643-527c-493d-bb87-c8b5450bae2c" />) |
+![Voice](<img width="543" height="502" alt="Screenshot 2026-02-14 071011" src="https://github.com/user-attachments/assets/f76e556e-d415-459b-b43e-192015225f97" />)
+
+![Profile](<img width="527" height="514" alt="Screenshot 2026-02-14 071038" src="https://github.com/user-attachments/assets/073db643-527c-493d-bb87-c8b5450bae2c" />)
 
 
 🚀 Local Installation
