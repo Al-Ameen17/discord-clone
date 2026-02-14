@@ -225,11 +225,16 @@
                 }
             }
 
-            // FIX: Updated Empty State Image and Text
+            // FIX: Replaced broken image with custom SVG Code
             function showEmpty(container) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <img class="empty-state-img" src="https://raw.githubusercontent.com/SAWARATSUKI/KawaiiLogos/main/Response/404%20NotFound.png" alt="Empty State">
+                        <svg class="empty-state-img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+                            <circle cx="100" cy="100" r="90" fill="#334155"/>
+                            <path d="M65 85C65 76.7157 71.7157 70 80 70C88.2843 70 95 76.7157 95 85C95 93.2843 88.2843 100 80 100C71.7157 100 65 93.2843 65 85Z" fill="#94a3b8"/>
+                            <path d="M105 85C105 76.7157 111.716 70 120 70C128.284 70 135 76.7157 135 85C135 93.2843 128.284 100 120 100C111.716 100 105 93.2843 105 85Z" fill="#94a3b8"/>
+                            <path d="M60 130C70 150 130 150 140 130" stroke="#94a3b8" stroke-width="10" stroke-linecap="round"/>
+                        </svg>
                         <p>It's quiet here... too quiet. Add some friends!</p>
                     </div>`;
             }
@@ -552,7 +557,6 @@
                 peers[userId] = call;
             }
 
-            // AUDIO FIX: Added autoplay and playsInline
             function addMediaStream(element, stream, isMe = false) {
                 element.srcObject = stream;
                 element.autoplay = true;
