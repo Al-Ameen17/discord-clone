@@ -1,16 +1,19 @@
 {
-  "name": "serg-discord-app",
-  "version": "1.0.0",
+  "name": "dihcord",
+  "version": "2.0.0",
   "description": "SpecGang discord clone",
   "main": "server.js",
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.9.0",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "mongoose": "^9.2.0",
+    "multer": "^2.0.2",
     "socket.io": "^4.8.3"
   }
 }

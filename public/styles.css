@@ -1,20 +1,25 @@
-/* 1. DISCORD FONTS & RESET */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+/* DISCORD FONTS & RESET */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;700&family=Inter:wght@400;500;600&display=swap');
 
 * {
     box-sizing: border-box;
 }
 
 :root {
-    --bg-main: #313338;       /* The main chat background */
-    --bg-sidebar: #2b2d31;    /* The sidebar background */
-    --bg-input: #383a40;      /* The input box background */
-    --text-header: #f2f3f5;   /* Bright white text */
-    --text-normal: #dbdee1;   /* Normal grey text */
-    --text-muted: #949ba4;    /* Dimmed text (timestamps) */
-    --accent: #5865F2;        /* Discord Blurple */
-    --danger: #da373c;        /* Red for delete/errors */
-    --hover: #2e3035;         /* Message hover color */
+    /* V2 THEME: Midnight Violet */
+    --bg-main: #0f172a;       /* Deep Slate Blue */
+    --bg-sidebar: #1e293b;    /* Lighter Slate */
+    --bg-input: #334155;      /* Blue-Grey Input */
+    --text-header: #f8fafc;   /* White */
+    --text-normal: #cbd5e1;   /* Soft Grey */
+    --text-muted: #64748b;    /* Muted Blue-Grey */
+    --accent: #8b5cf6;        /* Vibrant Violet */
+    --accent-hover: #7c3aed;  /* Darker Violet */
+    --danger: #ef4444;        /* Soft Red */
+    --hover: #1e293b;         /* Hover color */
+    
+    --radius-lg: 20px;        /* Big rounded corners */
+    --radius-sm: 8px;         /* Small rounded corners */
 }
 
 body {
@@ -22,226 +27,394 @@ body {
     padding: 0;
     display: flex;
     height: 100vh;
-    font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Inter', sans-serif; /* Cleaner font */
     background-color: var(--bg-main);
     color: var(--text-normal);
     overflow: hidden;
 }
 
-/* 2. SIDEBAR (Channels & Users) */
+/* ROUNDER SIDEBAR */
 .servers-list {
-    width: 240px;
+    width: 260px;
+    min-width: 260px;
     background-color: var(--bg-sidebar);
     display: flex;
     flex-direction: column;
-    padding: 10px;
-    border-right: 1px solid #1e1f22;
+    padding: 20px;
+    border-right: 1px solid #334155;
+    border-radius: 5px 25px 25px 5px;
+    flex-shrink: 0;
+    margin: 10px 0 10px 5px;
 }
 
 .servers-list h3 {
     text-transform: uppercase;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    color: var(--text-muted);
-    margin: 18px 8px 8px 8px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin: 20px 10px 10px 10px;
 }
 
-.servers-list ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
+.servers-list ul { list-style: none; padding: 0; margin: 0; }
 
-/* Channel Buttons */
-.servers-list li a {
+/* BUBBLY CHANNEL BUTTONS */
+.servers-list li a, .user-item {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
-    margin-bottom: 2px;
-    border-radius: 4px;
+    padding: 10px 15px;
+    margin-bottom: 5px;
+    border-radius: var(--radius-lg); /* Rounded pills */
     color: var(--text-muted);
     text-decoration: none;
     font-weight: 500;
-    transition: background 0.1s, color 0.1s;
+    transition: all 0.2s ease;
 }
 
-.servers-list li a:hover {
-    background-color: #35373c;
-    color: var(--text-normal);
+.servers-list li a:hover, .user-item:hover {
+    background-color: var(--bg-input);
+    color: var(--text-header);
+    transform: translateX(5px); /* Little slide effect */
 }
 
 .servers-list li a::before {
     content: "#";
-    margin-right: 6px;
-    font-size: 18px;
-    color: var(--text-muted);
+    margin-right: 8px;
+    font-weight: bold;
+    color: var(--accent);
 }
 
-/* Online User List */
-#users-list li {
-    display: flex;
-    align-items: center;
-    padding: 6px 12px;
-    color: var(--text-muted);
-    opacity: 0.8;
-}
-
-/* 3. MAIN CHAT AREA */
+/* MAIN CHAT AREA */
 .content {
     flex: 1;
     display: flex;
     flex-direction: column;
     height: 100vh;
     background-color: var(--bg-main);
+    min-width: 0;
 }
 
 #message-container {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 0; /* Vertical padding only */
+    padding: 20px 0;
     display: flex;
     flex-direction: column;
+    gap: 2px; /* Tiny gap between messages */
 }
 
-/* Individual Message Row */
-#message-container > div {
-    padding: 8px 16px; /* Horizontal padding ensures alignment */
-    margin-bottom: 0 !important; /* Override inline styles */
-    transition: background-color 0.1s;
+/* MESSAGE ROWS */
+.message-row {
+    padding: 4px 20px;
+    margin: 0;
+    transition: background 0.1s;
+    position: relative;
 }
 
-#message-container > div:hover {
-    background-color: var(--hover); /* The subtle hover effect */
+.message-row:hover { background-color: rgba(255,255,255,0.03); }
+
+/* --- MESSAGE GROUPING STYLES --- */
+/* Standard Message (Header) */
+.msg-header {
+    margin-top: 16px; /* Extra space before new person speaks */
+    padding-top: 4px;
 }
 
-/* 4. INPUT AREA */
+/* Compact Message (Grouped) */
+.msg-compact {
+    padding-left: 70px; /* Align text with previous message */
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+/* Hover Timestamp for Compact Messages */
+.timestamp-hover {
+    position: absolute;
+    left: 20px;
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0; /* Hidden by default */
+    width: 50px;
+    text-align: right;
+}
+
+.message-row:hover .timestamp-hover { opacity: 1; }
+
+/* INPUT AREA (Floating Pill) */
 .input-area {
-    padding: 0 16px 24px 16px;
+    padding: 20px;
     background-color: var(--bg-main);
 }
 
 #message-input {
     width: 100%;
-    padding: 12px 16px;
+    padding: 15px 25px;
     background-color: var(--bg-input);
-    border: none;
-    border-radius: 8px;
-    color: var(--text-normal);
+    border: 2px solid transparent;
+    border-radius: 30px; /* Fully rounded pill */
+    color: var(--text-header);
     font-size: 1rem;
     outline: none;
+    transition: border 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
-#message-input::placeholder {
-    color: var(--text-muted);
+#message-input:focus {
+    border-color: var(--accent);
 }
 
-/* 5. SCROLLBARS (Webkit only - Chrome/Edge/Safari) */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-::-webkit-scrollbar-track {
-    background-color: #2b2d31; 
-}
-::-webkit-scrollbar-thumb {
-    background-color: #1a1b1e; 
-    border-radius: 4px;
-}
+/* BUTTONS */
+button { font-family: 'Inter', sans-serif; }
 
-/* MOBILE STYLES */
-#menu-btn {
-    display: none; /* Hidden on PC */
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 100;
-    background: #2b2d31;
-    color: white;
-    border: none;
-    padding: 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-/* REACTION BUTTONS */
-.reaction-btn {
-    background: #2b2d31;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 2px 6px;
-    font-size: 1rem;
-    display: flex;
+/* Reply Preview */
+#reply-preview {
+    background: var(--bg-sidebar);
+    padding: 10px 20px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 10px;
+    display: none;
     align-items: center;
-    transition: all 0.2s;
+    justify-content: space-between;
+    min-width: 0;
+    border-left: 3px solid var(--accent);
+    font-size: 0.9rem;
+    color: var(--text-normal);
 }
 
-.reaction-btn:hover {
-    background: #404249;
-    border-color: #404249;
-}
-
-.reaction-btn.active-reaction {
-    background: rgba(88, 101, 242, 0.15); /* Blue tint */
-    border-color: #5865F2;
-    color: #5865F2;
-}
-
-/* When screen is smaller than 768px (Tablets/Phones) */
-@media (max-width: 768px) {
-    .servers-list {
-        position: absolute;
-        left: -250px; /* Hide off-screen */
-        height: 100%;
-        z-index: 99;
-        transition: left 0.3s; /* Smooth slide animation */
-        width: 240px;
-        box-shadow: 2px 0 5px rgba(0,0,0,0.5);
-    }
-
-    .servers-list.active {
-        left: 0; /* Slide in */
-    }
-
-    #menu-btn {
-        display: block; /* Show button */
-    }
-
-    .input-area {
-        padding-bottom: 20px; /* Extra padding for mobile keyboards */
-    }
-}
-
-/* Notification Badge */
-.user-item {
-    display: flex;
-    justify-content: space-between; /* Push badge to the far right */
-    align-items: center;
-    width: 100%;
-}
-
-.notification-badge {
-    background-color: #f23f42; /* Discord Red */
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 10px; /* Pill shape */
-    min-width: 18px;
-    text-align: center;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-
-/* MEDIA PLAYERS */
-.media-attachment {
-    max-width: 100%;
-    max-height: 300px;
-    border-radius: 8px;
-    margin-top: 5px;
+#reply-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     display: block;
+    margin-right: 10px;
 }
 
-.emoji-item:hover {
-    background-color: #404249;
+/* Media/Emoji Buttons */
+.toolbar-btn {
+    background: var(--bg-input);
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: 0.2s;
 }
+
+.toolbar-btn:hover {
+    background: var(--accent);
+    color: white;
+}
+
+/* SCROLLBARS */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { 
+    background: var(--bg-input); 
+    border-radius: 5px; 
+    border: 2px solid var(--bg-main);
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+    .servers-list { position: absolute; left: -280px; z-index: 100; height: 100%; }
+    .servers-list.active { left: 0; }
+    #menu-btn { display: block; position: fixed; top: 15px; left: 15px; z-index: 200; 
+                background: var(--accent); border-radius: 50%; width: 40px; height: 40px;}
+}
+
+/* UTILS (Reactions, Badges, etc - keep existing logic, update colors) */
+.reaction-btn { 
+    background: var(--bg-input); 
+    border-radius: 12px;
+    border: 1px solid transparent; 
+}
+.reaction-btn.active-reaction { 
+    background: rgba(139, 92, 246, 0.2); 
+    border-color: var(--accent); 
+}
+.media-attachment { border-radius: 16px; margin-top: 8px; }
+.reply-quote { border-left-color: var(--text-muted); color: var(--text-muted); }
+.msg-actions { background: var(--bg-sidebar); padding: 4px 8px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+/* USER PANEL (Bottom of Sidebar) */
+.user-panel {
+    margin-top: auto; /* This pushes it to the very bottom */
+    padding-top: 15px;
+    border-top: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden; /* Prevents long names from breaking layout */
+}
+
+.user-info img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #22c55e; /* Green "Online" border */
+}
+
+.user-info span {
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: var(--text-header);
+    white-space: nowrap;
+}
+
+.logout-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.6;
+    transition: 0.2s;
+    padding: 5px;
+    border-radius: 50%;
+}
+
+.logout-btn:hover {
+    background-color: var(--danger);
+    opacity: 1;
+    color: white; /* Make the icon white on red background */
+}
+
+/* STATUS DOTS */
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    border: 2px solid var(--bg-sidebar); /* Cutout effect */
+}
+
+.status-online { background-color: #22c55e; } /* Green */
+.status-idle   { background-color: #eab308; } /* Yellow */
+.status-dnd    { background-color: #ef4444; } /* Red */
+.status-offline{ background-color: #949ba4; } /* Grey */
+
+/* PROFILE MODAL (Popup) */
+#profile-modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.profile-card {
+    background: var(--bg-main);
+    width: 350px;
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    text-align: center;
+    padding-bottom: 20px;
+    border: 1px solid var(--bg-input);
+}
+
+.profile-banner {
+    height: 80px;
+    background: var(--accent);
+}
+
+.profile-avatar {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 5px solid var(--bg-main);
+    margin-top: -45px; /* Pull up into banner */
+    background: var(--bg-main);
+}
+
+.profile-name { font-size: 1.5rem; color: var(--text-header); margin: 10px 0 5px; }
+.profile-status { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px; }
+.profile-bio { 
+    background: var(--bg-input); 
+    margin: 10px 20px; 
+    padding: 10px; 
+    border-radius: 8px; 
+    color: var(--text-normal);
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.close-modal {
+    position: absolute; top: 10px; right: 15px;
+    color: white; cursor: pointer; font-size: 1.2rem;
+    background: rgba(0,0,0,0.2);
+    width: 30px; height: 30px; border-radius: 50%;
+    line-height: 30px;
+}
+
+/* VOICE CHANNEL */
+.voice-channel {
+    margin-top: 20px;
+    padding: 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+}
+
+.voice-header {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.voice-btn {
+    width: 100%;
+    padding: 8px;
+    background: var(--bg-input);
+    border: none;
+    border-radius: 5px;
+    color: var(--text-normal);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.2s;
+}
+
+.voice-btn:hover { background: var(--hover); color: white; }
+
+/* When connected */
+.voice-active {
+    background: #23a559 !important; /* Green */
+    color: white !important;
+}
+
+.voice-controls {
+    display: none; /* Hidden until connected */
+    margin-top: 5px;
+    display: flex; 
+    gap: 5px;
+}
+
+.control-btn {
+    flex: 1;
+    background: #2b2d31;
+    border: none;
+    padding: 5px;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.control-btn:hover { background: #3f4147; }
+.btn-danger { background: #da373c; }
+.btn-danger:hover { background: #ef4444; }

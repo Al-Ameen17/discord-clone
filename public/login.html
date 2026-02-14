@@ -4,19 +4,52 @@
     <title>Login - DihCord</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body style="display: flex; justify-content: center; align-items: center;">
+<body style="display: flex; justify-content: center; align-items: center; background: #0f172a;">
 
-    <div style="background: #2b2d31; padding: 40px; border-radius: 8px; width: 300px; text-align: center;">
-        <h2 style="color: white;">Welcome Back!</h2>
-        <input type="text" id="username" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 4px; border: none;">
-        <input type="password" id="password" placeholder="Password" style="width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 4px; border: none;">
+    <div style="background: #1e293b; padding: 40px; border-radius: 20px; width: 350px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <h2 style="color: #f8fafc; margin-bottom: 20px;">Welcome Back!</h2>
         
-        <button onclick="login()" style="width: 100%; padding: 10px; background: #5865F2; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Log In</button>
-        <p style="color: #aaa; margin-top: 10px; font-size: 0.9em;">Need an account? <a href="#" onclick="register()" style="color: #00b0f4;">Register</a></p>
-        <p id="error-msg" style="color: #ff5555; display: none;"></p>
+        <input type="text" id="username" placeholder="Username" style="width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: 2px solid #334155; background: #0f172a; color: white; outline: none;">
+        <input type="password" id="password" placeholder="Password" style="width: 100%; padding: 15px; margin-bottom: 20px; border-radius: 10px; border: 2px solid #334155; background: #0f172a; color: white; outline: none;">
+        
+        <div id="register-only" style="display:none; margin-bottom: 20px;">
+            <label for="avatar-input" style="cursor: pointer; display: block; color: #949ba4; font-size: 0.9em; margin-bottom: 5px;">
+                📸 Upload Profile Picture (Optional)
+            </label>
+            <input type="file" id="avatar-input" accept="image/*" style="width: 100%; color: #949ba4;">
+        </div>
+
+        <button id="main-btn" onclick="login()" style="width: 100%; padding: 15px; background: #8b5cf6; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s;">Log In</button>
+        
+        <p style="color: #64748b; margin-top: 20px; font-size: 0.9em;">
+            <span id="toggle-text">Need an account?</span> 
+            <a href="#" onclick="toggleMode()" style="color: #8b5cf6; text-decoration: none; font-weight: bold;">Register</a>
+        </p>
+        <p id="error-msg" style="color: #ef4444; display: none; margin-top: 10px;"></p>
     </div>
 
     <script>
+        let isRegistering = false;
+
+        function toggleMode() {
+            isRegistering = !isRegistering;
+            const btn = document.getElementById('main-btn');
+            const regDiv = document.getElementById('register-only');
+            const toggleText = document.getElementById('toggle-text');
+            
+            if (isRegistering) {
+                btn.innerText = "Create Account";
+                btn.onclick = register;
+                regDiv.style.display = 'block';
+                toggleText.innerHTML = "Already have an account?";
+            } else {
+                btn.innerText = "Log In";
+                btn.onclick = login;
+                regDiv.style.display = 'none';
+                toggleText.innerHTML = "Need an account?";
+            }
+        }
+
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
@@ -29,7 +62,6 @@
 
             const data = await res.json();
             if (data.success) {
-                // Save user info locally and go to chat
                 localStorage.setItem('username', data.username);
                 localStorage.setItem('avatar', data.avatar);
                 window.location.href = '/';
@@ -41,16 +73,40 @@
         async function register() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            const fileInput = document.getElementById('avatar-input');
             
+            let avatarUrl = null;
+
+            // 1. Upload Image First (if selected)
+            if (fileInput.files.length > 0) {
+                const formData = new FormData();
+                formData.append('avatar', fileInput.files[0]);
+
+                try {
+                    const uploadRes = await fetch('/upload-avatar', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        avatarUrl = uploadData.filePath;
+                    }
+                } catch (err) {
+                    console.error("Upload failed", err);
+                }
+            }
+
+            // 2. Register User with Avatar URL
             const res = await fetch('/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password, avatar: avatarUrl })
             });
 
             const data = await res.json();
             if (data.success) {
                 alert("Account created! Please log in.");
+                toggleMode(); // Switch back to login
             } else {
                 showError(data.message);
             }

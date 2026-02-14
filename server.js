@@ -1,12 +1,21 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const multer = require('multer'); // <--- NEW LIBRARY
+const path = require('path');
+const fs = require('fs');
 const app = express();
 const http = require('http').createServer(app);
+const cloudinary = require('cloudinary').v2;
 
+cloudinary.config({
+  cloud_name: 'dt7hwh7yo', 
+  api_key: '897683664172516', 
+  api_secret: 'gdZAlOQtkiLH8Vu1PpvUl_YhofQ' 
+});
 // FIX 1: Increase message size limit to 10MB for images
 const io = require('socket.io')(http, {
-    maxHttpBufferSize: 1e8 // 100 MB
+    maxHttpBufferSize: 1e7 // Reduced to 10MB for memory safety
 });
 
 const bcrypt = require('bcryptjs'); 
@@ -14,33 +23,66 @@ const bcrypt = require('bcryptjs');
 app.use(express.static('public'));
 app.use(express.json());
 
-// --- 1. DEFINE MODELS FIRST (Critical Order Fix) ---
+// --- MULTER SETUP (File Uploads) ---
+// 1. Ensure upload directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
+// 2. Configure Storage
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        // Create unique filename: user-timestamp.ext
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB Limit per profile pic
+});
+
+// 3. Serve the 'uploads' folder publicly
+app.use('/uploads', express.static('uploads'));
+
+// --- MODELS ---
 const Message = mongoose.model('Message', new mongoose.Schema({
     user: String,
     text: String,
     room: String,
     avatar: String,
     timestamp: { type: Date, default: Date.now },
-    reactions: { type: Map, of: [String], default: {}}
+    reactions: { type: Map, of: [String], default: {}},
+    edited: { type:Boolean, default: false },
+    replyTo: {
+        id: String,
+        user: String, 
+        text: String
+    }
 }));
 
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    avatar: { type: String } 
+    avatar: { type: String },
+    bio: { type: String, default: "Hi, I'm new to DihCord!" },
+    status: { type: String, default: "Online" } //online, idle, dnd, invisible
 }));
 
 const Room = mongoose.model('Room', new mongoose.Schema({
     name: { type: String, required: true, unique: true }
 }));
 
-// --- 2. CONNECT TO DB & SEED ROOMS ---
+// --- DB CONNECTION ---
 const mongoURI = process.env.MONGO_URI; 
 mongoose.connect(mongoURI)
     .then(async () => {
         console.log('✅ Connected to MongoDB!');
-        
-        // Check if rooms exist, if not, create default
         const count = await Room.countDocuments();
         if (count === 0) {
             await new Room({ name: 'general' }).save();
@@ -51,20 +93,48 @@ mongoose.connect(mongoURI)
     })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// --- 3. ROUTES ---
-// Global set to track online users
+// --- ROUTES ---
 const activeUsers = new Set();
+
+// --- CLOUD UPLOAD ---
+app.post('/upload-avatar', upload.single('avatar'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "No file uploaded" });
+        }
+
+        // 1. Upload the local file to Cloudinary
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            folder: "dihcord_avatars", // Folder name in Cloudinary
+            width: 300,               // Resize to save bandwidth
+            height: 300,
+            crop: "fill"
+        });
+
+        // 2. Delete the local file from 'uploads/' (keep server clean)
+        fs.unlinkSync(req.file.path);
+
+        // 3. Return the PERMANENT Cloud URL
+        res.json({ success: true, filePath: result.secure_url });
+
+    } catch (err) {
+        console.error("Cloudinary Error:", err);
+        res.status(500).json({ success: false, message: "Upload failed" });
+    }
+});
 
 app.post('/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, avatar } = req.body; // <--- Now accepts custom avatar URL
         const existingUser = await User.findOne({ username });
         if (existingUser) return res.status(400).json({ success: false, message: "Username taken" });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
         
-        const newUser = new User({ username, password: hashedPassword, avatar });
+        // Use provided avatar OR fallback to DiceBear
+        const finalAvatar = avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
+        
+        const newUser = new User({ username, password: hashedPassword, avatar: finalAvatar });
         await newUser.save();
         res.json({ success: true });
     } catch (err) {
@@ -79,10 +149,6 @@ app.post('/login', async (req, res) => {
         
         if (!user || !await bcrypt.compare(password, user.password)) {
             return res.status(400).json({ success: false, message: "Invalid credentials" });
-        }
-        if (!user.avatar) {
-            user.avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
-            await user.save();
         }
         res.json({ success: true, username: user.username, avatar: user.avatar });
     } catch (err) {
@@ -108,101 +174,177 @@ app.post('/rooms', async (req, res) => {
     }
 });
 
-// --- 4. SOCKET IO ---
+// Update User Avatar Route
+app.post('/update-user-avatar', async (req, res) => {
+    try {
+        const { username, avatarUrl } = req.body;
+        await User.findOneAndUpdate({ username }, { avatar: avatarUrl });
+        
+        // Also update past messages so the chat history looks fresh
+        await Message.updateMany({ user: username }, { avatar: avatarUrl });
+        
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false });
+    }
+});
+
+// Get User Profile (Public)
+app.post('/get-profile', async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.body.username });
+        if (!user) return res.json({ success: false });
+        res.json({ 
+            success: true, 
+            username: user.username, 
+            avatar: user.avatar, 
+            bio: user.bio, 
+            status: user.status 
+        });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// Update My Profile
+app.post('/update-profile', async (req, res) => {
+    try {
+        const { username, bio, status } = req.body;
+        await User.findOneAndUpdate({ username }, { bio, status });
+        
+        // Notify everyone that this user changed (so the UI updates instantly)
+        io.emit('status update', { username, status });
+        
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// --- SOCKET IO ---
 io.on('connection', (socket) => {
     let currentRoom = 'general';
     socket.join(currentRoom);
 
-    // Load History
-    Message.find({ room: currentRoom }).sort({ timestamp: 1 }).limit(50)
-        .then(messages => socket.emit('load history', messages));
+    // Limit history to 20 for memory safety
+    Message.find({ room: currentRoom }).sort({ timestamp: -1 }).limit(20)
+        .then(messages => socket.emit('load history', messages.reverse()));
 
-    // Join Room
     socket.on('join room', (newRoom) => {
         socket.leave(currentRoom);
         socket.join(newRoom);
         currentRoom = newRoom;
         
-        Message.find({ room: newRoom }).sort({ timestamp: 1 }).limit(50)
-            .then(messages => socket.emit('load history', messages));
+       Message.find({ room: newRoom }).sort({ timestamp: -1 }).limit(20)
+            .then(messages => socket.emit('load history', messages.reverse()));
             
         socket.emit('chat message', { user: 'System', text: `You joined #${newRoom}` });
     });
 
-    // Chat Message
     socket.on('chat message', (msg) => {
         const newMessage = new Message({
             user: msg.user,
             text: msg.text,
             room: currentRoom,
-            avatar: msg.avatar
+            avatar: msg.avatar,
+            replyTo: msg.replyTo
         });
 
         newMessage.save().then((savedMessage) => {
             io.to(currentRoom).emit('chat message', savedMessage);
-
-            // DEBUG: Print what room the server THINKS we are in
-            console.log(`[DEBUG] Message sent in room: ${currentRoom}`);
-
+            
+            // Notifications logic
             if (currentRoom.startsWith('dm_')) {
                 const parts = currentRoom.split('_');
                 const targetUser = parts.find(part => part !== 'dm' && part !== msg.user);
-                
                 if (targetUser) {
-                    console.log(`🔔 RINGING BELL: Sending notification to notify_${targetUser}`);
                     io.to("notify_" + targetUser).emit('dm notification', { sender: msg.user });
-                } else {
-                    console.log(`[DEBUG] Could not find target user in ${currentRoom}`);
                 }
             }
         });
     });
-
-    socket.on('delete message', (messageId) => {
-        Message.findByIdAndDelete(messageId).then(() => {
-            io.emit('delete message', messageId);
-        });
-    });
-
+ 
     socket.on('typing', (data) => {
         socket.to(data.room).emit('display typing', data);
     });
 
-    // FIX 3: Re-register user on connection
-    socket.on('user joined', (username) => {
+    socket.on('user joined', async (username) => {
         socket.username = username; 
         activeUsers.add(username);
-        socket.join("notify_" + username); // IMPORTANT: Join the notification channel
-        console.log(`User ${username} joined notification channel`);
+        socket.join("notify_" + username);
+
+        // NEW: Fetch status from DB to broadcast correctly
+        const user = await User.findOne({ username });
+        const status = user ? user.status : 'online';
+        
+        io.emit('status update', { username, status }); // Tell everyone I'm here
         io.emit('update user list', Array.from(activeUsers));
     });
+  
+    // Atomic Reaction Handling
+    socket.on('add reaction', async ({ messageId, emoji, user }) => {
+        try {
+            const reactionPath = `reactions.${emoji}`;
+            let msg = await Message.findOneAndUpdate(
+                { _id: messageId, [reactionPath]: user },
+                { $pull: { [reactionPath]: user } },
+                { returnDocument: 'after' }
+            );
+            if (!msg) {
+                msg = await Message.findByIdAndUpdate(
+                    messageId,
+                    { $addToSet: { [reactionPath]: user } },
+                    { returnDocument: 'after' }
+                );
+            }
+            if (msg) io.emit('update message', msg);
+        } catch (err) { console.error("Reaction Error:", err); }
+    });
 
-    socket.on('disconnect', () => {
+    socket.on('request user list', () => {
+        socket.emit('update user list', Array.from(activeUsers));
+    });
+
+    socket.on('delete message', async (messageId) => {
+        try {
+            const msg = await Message.findById(messageId);
+            if (!msg) return;
+            if (msg.user === socket.username || socket.username === 'Sergslow') {
+                await Message.findByIdAndDelete(messageId);
+                io.emit('delete message', messageId);
+            }
+        } catch (err) { console.error(err); }
+    });
+
+    socket.on('edit message', async ({ id, newText }) => {
+        try {
+            const msg = await Message.findById(id);
+            if (!msg) return;
+            if (msg.user === socket.username) {
+                msg.text = newText;
+                msg.edited = true;
+                await msg.save();
+                io.emit('update message', msg);
+            }
+        } catch (err) { console.error(err); }
+    });
+
+    // --- VOICE CHAT LOGIC ---
+    socket.on('join-voice', (roomId, userId) => {
+        socket.join(roomId); // Join a specific socket room for voice signaling
+        socket.to(roomId).emit('user-connected-voice', userId); // Tell everyone else "Hey, UserID is here!"
+
+        socket.on('disconnect', () => {
+            socket.to(roomId).emit('user-disconnected-voice', userId);
+        });
+        
+        // Handle explicit leave (hanging up)
+        socket.on('leave-voice', (roomId, userId) => {
+             socket.to(roomId).emit('user-disconnected-voice', userId);
+        });
+    });
+
+     socket.on('disconnect', () => {
         if (socket.username) {
             activeUsers.delete(socket.username);
             io.emit('update user list', Array.from(activeUsers));
         }
-    });
-
-    socket.on('add reaction', async ({ messageId, emoji, user }) => {
-        try {
-            const msg = await Message.findById(messageId);
-            if (!msg) return;
-            if (!msg.reactions) msg.reactions = new Map();
-
-            let users = msg.reactions.get(emoji) || [];
-            if (users.includes(user)) users = users.filter(u => u !== user);
-            else users.push(user);
-
-            msg.reactions.set(emoji, users);
-            await msg.save();
-            io.emit('update message', msg);
-        } catch (err) { console.error(err); }
-    });
-
-    socket.on('request user list', () => {
-        // Send the list ONLY to the person who asked (saves bandwidth)
-        socket.emit('update user list', Array.from(activeUsers));
     });
 });
 

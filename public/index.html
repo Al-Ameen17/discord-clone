@@ -3,6 +3,7 @@
     <head>
         <title>DihCord</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
         <link rel="stylesheet" href="styles.css">
     </head>
     <body>
@@ -17,6 +18,29 @@
 
             <h3 style="margin-top: 20px;">Online Users</h3>
             <ul id="users-list"></ul>
+
+            <div class="voice-channel">
+                <div class="voice-header">VOICE CHANNELS</div>
+                <button id="join-voice-btn" class="voice-btn" onclick="joinVoice()">
+                    🔊 General Voice
+                </button>
+                
+                <div id="voice-controls" style="display:none; margin-top:5px; gap:5px;">
+                    <button class="control-btn" onclick="toggleMute()" id="mute-btn">🎤 Mute</button>
+                    <button class="control-btn btn-danger" onclick="leaveVoice()">✖ Leave</button>
+                </div>
+            </div>
+
+            <div class="user-panel">
+                <div class="user-info" onclick="triggerAvatarUpload()" style="cursor: pointer;" title="Change Avatar">
+                    <img id="current-user-avatar" src="" alt="Avatar">
+                    <span id="current-user-name">Loading...</span>
+                </div>
+                
+                <input type="file" id="update-avatar-input" accept="image/*" style="display:none;">
+                
+                <button onclick="logout()" class="logout-btn" title="Log Out">🚪</button>
+            </div>
         </div>
 
         <div class="content">
@@ -29,14 +53,45 @@
             <div class="input-area">
                 <div id="typing-indicator"></div> 
                 
-                <div style="display: flex; gap: 10px; margin-bottom: 5px;">
-                    <button onclick="document.getElementById('file-input').click()" style="background:none; border:none; cursor:pointer; color:#b5bac1;">📎 Media</button>
-                    <button id="emoji-btn" onclick="toggleEmojiPicker()" style="background:none; border:none; cursor:pointer; color:#b5bac1;">😀 Emoji</button>
+                <div id="reply-preview">
+                    <span id="reply-text">Replying to...</span>
+                    <button onclick="cancelReply()" style="background:none; border:none; color:#dbdee1; cursor:pointer;">✖</button>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button onclick="document.getElementById('file-input').click()" class="toolbar-btn">📎 Media</button>
+                    <button id="emoji-btn" onclick="toggleEmojiPicker()" class="toolbar-btn">😀 Emoji</button>
                 </div>
 
                 <input type="file" id="file-input" accept="image/*,video/*" style="display: none;" onchange="uploadMedia()">
                 
                 <input type="text" id="message-input" placeholder="Message #general...">
+            </div>
+        </div>
+
+        <div id="profile-modal" onclick="closeProfile(event)">
+            <div class="profile-card">
+                <div class="close-modal" onclick="document.getElementById('profile-modal').style.display='none'">✕</div>
+                <div class="profile-banner"></div>
+                <img id="modal-avatar" class="profile-avatar" src="">
+                
+                <h2 id="modal-name" class="profile-name">User</h2>
+                <div id="modal-status" class="profile-status">online</div>
+                
+                <div class="profile-bio">
+                    <strong>About Me:</strong><br>
+                    <span id="modal-bio">...</span>
+                </div>
+
+                <div id="edit-controls" style="display:none; padding: 10px;">
+                    <input type="text" id="edit-bio-input" placeholder="New Bio..." style="width:70%; padding:5px; border-radius:5px; border:none;">
+                    <select id="edit-status-input" style="padding:5px; border-radius:5px;">
+                        <option value="online">🟢 Online</option>
+                        <option value="idle">🌙 Idle</option>
+                        <option value="dnd">⛔ DND</option>
+                    </select>
+                    <button onclick="saveProfile()" style="margin-top:10px; padding:5px 15px; background:var(--accent); color:white; border:none; border-radius:5px; cursor:pointer;">Save</button>
+                </div>
             </div>
         </div>
 
@@ -58,7 +113,7 @@
             // --- IMMEDIATE STARTUP ---
             updateRoomUI(currentRoom);
 
-            // --- 2. SETUP EMOJI PICKER ---
+            // --- SETUP EMOJI PICKER ---
             const picker = new EmojiButton({
                 position: 'top-start',
                 theme: 'dark', 
@@ -86,6 +141,91 @@
                 
                 document.getElementById('message-container').innerHTML = '';
                 socket.emit('join room', roomName);
+            }
+
+            // --- USER PANEL LOGIC ---
+            // 1. Fill the panel with data
+            document.getElementById('current-user-name').innerText = username;
+            document.getElementById('current-user-avatar').src = avatar;
+
+            // 2. The Logout Function
+            window.logout = function() {
+                if (confirm("Are you sure you want to log out?")) {
+                    localStorage.removeItem('username');
+                    localStorage.removeItem('avatar');
+                    localStorage.removeItem('lastRoom'); // Optional: clear room memory
+                    window.location.href = '/login.html';
+                }
+            }
+
+            // --- CHANGE AVATAR LOGIC ---
+            window.changeAvatar = async function() {
+                const fileInput = document.getElementById('update-avatar-input');
+                if (fileInput.files.length === 0) return;
+
+                const formData = new FormData();
+                formData.append('avatar', fileInput.files[0]);
+
+                try {
+                    // 1. Upload File
+                    const uploadRes = await fetch('/upload-avatar', { method: 'POST', body: formData });
+                    const uploadData = await uploadRes.json();
+                    
+                    if (uploadData.success) {
+                        const newAvatarUrl = uploadData.filePath;
+                        
+                        // 2. Update Database
+                        await fetch('/update-user-avatar', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: username, avatarUrl: newAvatarUrl })
+                        });
+
+                        // 3. Update Local Storage & UI
+                        localStorage.setItem('avatar', newAvatarUrl);
+                        document.getElementById('current-user-avatar').src = newAvatarUrl;
+                        alert("Avatar updated! It will appear on new messages.");
+                        
+                        // Optional: Reload to see changes in history
+                        location.reload();
+                    }
+                } catch (err) {
+                    alert("Failed to update avatar");
+                }
+            }
+
+            // --- AVATAR UPLOAD HELPERS ---
+            window.triggerAvatarUpload = function() {
+                console.log("Triggering upload..."); // Debug log
+                document.getElementById('update-avatar-input').click();
+            }
+
+            // Attach listener manually to ensure it works
+            const avatarInput = document.getElementById('update-avatar-input');
+            if(avatarInput) {
+                avatarInput.addEventListener('change', window.changeAvatar);
+            }
+
+            // --- REPLY LOGIC ---
+            let replyingTo = null; // Stores { id, user, text }
+
+            window.startReply = function(id, user, text) {
+                replyingTo = { id, user, text };
+                
+                // Show the preview bar
+                const bar = document.getElementById('reply-preview');
+                const label = document.getElementById('reply-text');
+                
+                bar.style.display = 'flex';
+                label.innerHTML = `Replying to <strong>@${user}</strong>`;
+                
+                // Focus input so they can type immediately
+                document.getElementById('message-input').focus();
+            }
+
+            window.cancelReply = function() {
+                replyingTo = null;
+                document.getElementById('reply-preview').style.display = 'none';
             }
 
             function updateRoomUI(roomName) {
@@ -120,74 +260,320 @@
                 fileInput.value = ''; 
             }
 
-            function addMessageToScreen(msg) {
-                let item = document.getElementById(`msg-${msg._id}`);
-                let isNewMessage = false;
+            // --- PROFILE & STATUS LOGIC ---
+            
+            window.viewProfile = async function(targetUser) {
+                // 1. Fetch Data
+                const res = await fetch('/get-profile', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: targetUser })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    // 2. Fill Modal
+                    document.getElementById('modal-name').innerText = data.username;
+                    document.getElementById('modal-avatar').src = data.avatar;
+                    document.getElementById('modal-bio').innerText = data.bio;
+                    document.getElementById('modal-status').innerText = data.status.toUpperCase();
+                    
+                    // 3. Show Edit Controls ONLY if it's me
+                    const isMe = (targetUser === username);
+                    document.getElementById('edit-controls').style.display = isMe ? 'block' : 'none';
+                    if (isMe) {
+                        document.getElementById('edit-bio-input').value = data.bio;
+                        document.getElementById('edit-status-input').value = data.status;
+                    }
 
+                    // 4. Show Modal
+                    document.getElementById('profile-modal').style.display = 'flex';
+                }
+            }
+
+            window.saveProfile = async function() {
+                const newBio = document.getElementById('edit-bio-input').value;
+                const newStatus = document.getElementById('edit-status-input').value;
+
+                await fetch('/update-profile', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username, bio: newBio, status: newStatus })
+                });
+
+                document.getElementById('profile-modal').style.display = 'none';
+                alert("Profile Updated!");
+            }
+
+            window.closeProfile = function(e) {
+                if (e.target.id === 'profile-modal') {
+                    document.getElementById('profile-modal').style.display = 'none';
+                }
+            }
+
+            // --- VOICE CHAT SYSTEM ---
+            const voiceGrid = document.createElement('div'); // Hidden container for audio streams
+            document.body.append(voiceGrid);
+            
+            let myPeer;
+            let myStream;
+            const peers = {}; // Keep track of active calls so we can remove them
+
+            window.joinVoice = function() {
+                const btn = document.getElementById('join-voice-btn');
+                const controls = document.getElementById('voice-controls');
+                
+                // 1. Initialize PeerJS (Connect to public cloud)
+                // We use our username as a "seed" but sanitized (no spaces)
+                // Note: In production, we'd use a random ID, but this helps debugging.
+                const peerId = 'dihcord-' + username.replace(/[^a-zA-Z0-9]/g, '') + '-' + Math.floor(Math.random()*1000);
+                
+                myPeer = new Peer(peerId);
+
+                myPeer.on('open', id => {
+                    console.log('My Peer ID is: ' + id);
+                    
+                    // 2. Get Microphone Access
+                    navigator.mediaDevices.getUserMedia({
+                        video: false, // Audio only
+                        audio: true
+                    }).then(stream => {
+                        myStream = stream;
+                        addAudioStream(document.createElement('audio'), stream, true); // Add my own audio (muted)
+
+                        // 3. Answer Incoming Calls
+                        myPeer.on('call', call => {
+                            call.answer(stream); // Send them my stream
+                            const audio = document.createElement('audio');
+                            call.on('stream', userVideoStream => {
+                                addAudioStream(audio, userVideoStream);
+                            });
+                        });
+
+                        // 4. Tell Server I joined
+                        socket.emit('join-voice', 'general-voice', id);
+                        
+                        // 5. Update UI
+                        btn.classList.add('voice-active');
+                        btn.innerText = "🔊 Connected";
+                        controls.style.display = 'flex';
+
+                        // 6. Listen for others joining
+                        socket.on('user-connected-voice', (userId) => {
+                            console.log("User connected: " + userId);
+                            connectToNewUser(userId, stream);
+                        });
+                        
+                        // 7. Listen for others leaving
+                        socket.on('user-disconnected-voice', (userId) => {
+                            if (peers[userId]) peers[userId].close();
+                        });
+
+                    }).catch(err => {
+                        alert("Could not access microphone! " + err);
+                    });
+                });
+            }
+
+            window.leaveVoice = function() {
+                // Stop Socket listeners
+                socket.emit('leave-voice', 'general-voice', myPeer.id);
+                socket.off('user-connected-voice');
+                socket.off('user-disconnected-voice');
+
+                // Kill Peer
+                if(myPeer) myPeer.destroy();
+                
+                // Stop Mic
+                if(myStream) myStream.getTracks().forEach(track => track.stop());
+
+                // Reset UI
+                const btn = document.getElementById('join-voice-btn');
+                btn.classList.remove('voice-active');
+                btn.innerText = "🔊 General Voice";
+                document.getElementById('voice-controls').style.display = 'none';
+                
+                // Remove all audio elements
+                voiceGrid.innerHTML = '';
+            }
+
+            window.toggleMute = function() {
+                if(myStream) {
+                    const track = myStream.getAudioTracks()[0];
+                    track.enabled = !track.enabled;
+                    document.getElementById('mute-btn').innerText = track.enabled ? "🎤 Mute" : "🔴 Unmute";
+                }
+            }
+
+            function connectToNewUser(userId, stream) {
+                // Call the new user
+                const call = myPeer.call(userId, stream);
+                const audio = document.createElement('audio');
+                
+                call.on('stream', userVideoStream => {
+                    addAudioStream(audio, userVideoStream);
+                });
+                
+                call.on('close', () => {
+                    audio.remove();
+                });
+
+                peers[userId] = call;
+            }
+
+            function addAudioStream(audio, stream, isMe = false) {
+                audio.srcObject = stream;
+                audio.addEventListener('loadedmetadata', () => {
+                    audio.play();
+                });
+                if(isMe) audio.muted = true; // Don't hear myself!
+                voiceGrid.append(audio);
+            }
+            
+            // Listen for status updates to repaint dots (Optional polish)
+            socket.on('status update', (data) => {
+                // In a full app, we would update the sidebar dot here.
+                // For now, we will just log it.
+                console.log(data.username + " is now " + data.status);
+            });
+
+           function addMessageToScreen(msg) {
+                const container = document.getElementById('message-container');
+                let item = document.getElementById(`msg-${msg._id}`);
+                const isUpdate = !!item; // Check if message already exists
+
+                // --- 1. FIND NEIGHBOR FOR GROUPING ---
+                // If updating: look at the message ABOVE the existing one.
+                // If new: look at the LAST message in the chat.
+                let previousElement;
+                if (isUpdate) {
+                    previousElement = item.previousElementSibling;
+                } else {
+                    previousElement = container.lastElementChild;
+                }
+
+                // --- 2. DECIDE: GROUP OR NEW HEADER? ---
+                let isGrouped = false;
+                if (previousElement && previousElement.dataset.user === msg.user) {
+                    const prevTime = parseInt(previousElement.dataset.timestamp);
+                    const thisTime = new Date(msg.timestamp || Date.now()).getTime();
+                    
+                    // Group if same user AND less than 5 minutes apart
+                    if (thisTime - prevTime < 5 * 60 * 1000) {
+                        isGrouped = true;
+                    }
+                }
+
+                // --- 3. CREATE ELEMENT (If it doesn't exist) ---
                 if (!item) {
-                    isNewMessage = true;
                     item = document.createElement('div');
                     item.id = `msg-${msg._id}`;
-                    item.style.marginBottom = "15px";
-                    item.style.display = "flex";
+                    item.dataset.timestamp = new Date(msg.timestamp || Date.now()).getTime();
                 }
-
-                if (msg.user === 'System') {
-                    const timeString = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    item.style.color = '#ff5555';
-                    item.innerHTML = `<span style="font-size: 0.8em; color: #888;">[${timeString}]</span> <em>${msg.text}</em>`;
-                    if (isNewMessage) {
-                        container.appendChild(item);
-                        container.scrollTop = container.scrollHeight;
-                    }
-                    return;
-                }
-
-                const userAvatar = msg.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${msg.user}`;
-                const timeString = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const isAdmin = localStorage.getItem('username') === 'Sergslow';
-                const deleteBtn = isAdmin ? `<span onclick="deleteMessage('${msg._id}')" style="cursor:pointer; color:red; margin-left:10px;">🗑️</span>` : '';
-
-                // --- MEDIA DETECTION LOGIC ---
-                let messageBody = msg.text; 
                 
+                // Update dataset (important for future grouping checks)
+                item.dataset.user = msg.user; 
+
+                // --- 4. PREPARE CONTENT ---
+                const isMe = msg.user === username;
+                const isAdmin = localStorage.getItem('username') === 'Sergslow';
+                const timeString = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const fullDateString = new Date(msg.timestamp || Date.now()).toLocaleString();
+
+                // Media Check
+                let messageBody = msg.text; 
                 const isVideo = msg.text.startsWith('data:video') || /\.(mp4|webm|ogg)$/i.test(msg.text);
                 const isImage = msg.text.startsWith('data:image') || /\.(jpeg|jpg|gif|png|webp)$/i.test(msg.text);
 
-                if (isVideo) {
-                    messageBody = `<video src="${msg.text}" controls class="media-attachment"></video>`;
-                } else if (isImage) {
-                    messageBody = `<img src="${msg.text}" class="media-attachment">`;
+                if (isVideo) messageBody = `<video src="${msg.text}" controls class="media-attachment"></video>`;
+                else if (isImage) messageBody = `<img src="${msg.text}" class="media-attachment">`;
+
+                const editedHtml = msg.edited ? `<span class="edited-tag">(edited)</span>` : '';
+
+                // Reply Logic
+                let replyHtml = '';
+                if (msg.replyTo) {
+                    replyHtml = `
+                        <div class="reply-quote" onclick="scrollToMessage('${msg.replyTo.id}')">
+                            <span style="font-weight:bold; margin-right:5px;">@${msg.replyTo.user}</span>
+                            <span style="opacity:0.8; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;">${msg.replyTo.text}</span>
+                        </div>`;
+                    isGrouped = false; // Always break group if it's a reply
                 }
 
+                // Action Buttons
+                let actionButtons = `<div class="msg-actions">`;
+                actionButtons += `<button class="action-btn" onclick="startReply('${msg._id}', '${msg.user}', '${msg.text.replace(/'/g, "\\'")}')">↩️</button>`;
+                if (isMe || isAdmin) {
+                    if (isMe) actionButtons += `<button class="action-btn" onclick="editMessage('${msg._id}', '${msg.text.replace(/'/g, "\\'")}')">✏️</button>`;
+                    actionButtons += `<button class="action-btn" onclick="deleteMessage('${msg._id}')" style="color:var(--danger);">🗑️</button>`;
+                }
+                actionButtons += `</div>`;
+
+                // Reactions (The part that needs updating!)
                 let reactionsHtml = '<div style="display:flex; gap:5px; margin-top:5px;">';
                 const emojis = ['👍', '😂', '🔥', '❤️'];
                 emojis.forEach(emoji => {
                     const users = (msg.reactions && msg.reactions[emoji]) ? msg.reactions[emoji] : [];
-                    const count = users.length;
                     const activeClass = users.includes(username) ? 'active-reaction' : '';
-                    const countDisplay = count > 0 ? `<span style="margin-left:4px; font-size:0.8em;">${count}</span>` : '';
-                    reactionsHtml += `<button onclick="sendReaction('${msg._id}', '${emoji}')" class="reaction-btn ${activeClass}" title="${users.join(', ')}">${emoji} ${countDisplay}</button>`;
+                    const countDisplay = users.length > 0 ? `<span style="margin-left:4px; font-size:0.8em;">${users.length}</span>` : '';
+                    reactionsHtml += `<button onclick="sendReaction('${msg._id}', '${emoji}')" class="reaction-btn ${activeClass}">${emoji} ${countDisplay}</button>`;
                 });
                 reactionsHtml += '</div>';
 
-                item.innerHTML = `
-                    <img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px;">
-                    <div style="flex: 1;">
-                        <div style="display: flex; align-items: baseline; margin-bottom: 2px;">
-                            <strong style="color: white; margin-right: 10px;">${msg.user}</strong>
-                            <span style="font-size: 0.75em; color: #949ba4;">${timeString}</span>
-                            ${deleteBtn}
+                // --- 5. RENDER HTML ---
+                if (isGrouped) {
+                    // COMPACT MODE
+                    item.className = "message-row msg-compact";
+                    item.innerHTML = `
+                        <div class="timestamp-hover">${timeString}</div>
+                        <div style="flex:1;">
+                            <div style="display:flex; align-items:center;">
+                                <div style="color:var(--text-normal); line-height:1.4; flex:1;">${messageBody} ${editedHtml}</div>
+                                ${actionButtons}
+                            </div>
+                            ${reactionsHtml}
                         </div>
-                        <div style="color: #dbdee1; line-height: 1.4; word-wrap: break-word;">${messageBody}</div>
-                        ${reactionsHtml} 
-                    </div>
-                `;
-                if (isNewMessage) {
+                    `;
+                } else {
+                    // HEADER MODE
+                    item.className = "message-row msg-header";
+                    const userAvatar = msg.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${msg.user}`;
+                    
+                    item.innerHTML = `
+                        <img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; margin-top:2px;">
+                        <div style="flex: 1;">
+                            ${replyHtml}
+                            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                                <strong style="color: var(--text-header); cursor:pointer;" onclick="viewProfile('${msg.user}')">${msg.user}</strong>
+                                <span style="font-size: 0.75em; color: var(--text-muted);" title="${fullDateString}">${timeString}</span>
+                                ${actionButtons}
+                            </div>
+                            <div style="color: var(--text-normal); line-height: 1.4;">
+                                ${messageBody} ${editedHtml}
+                            </div>
+                            ${reactionsHtml} 
+                        </div>
+                    `;
+                }
+
+                // --- 6. APPEND IF NEW ---
+                if (!isUpdate) {
                     container.appendChild(item);
-                    container.scrollTop = container.scrollHeight; 
+                    container.scrollTop = container.scrollHeight;
+
+                    if (container.children.length > 100) {
+                        container.removeChild(container.firstElementChild);
+                    }
                 }
             }
+
+        window.editMessage = function(id, oldText) {
+            const newText = prompt("Edit your message:", oldText);
+            if (newText && newText !== oldText) {
+                socket.emit('edit message', { id, newText });
+            }
+        }
 
             // --- SOCKET LISTENERS ---
             socket.on('connect', () => {
@@ -264,8 +650,16 @@
 
             input.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && input.value) {
-                    socket.emit('chat message', { user: username, text: input.value, avatar: avatar });
+                    const messageData = {
+                        user: username,
+                        text: input.value,
+                        avatar: avatar,
+                        replyTo: replyingTo
+                    };
+                    socket.emit('chat message', messageData);
+
                     input.value = '';
+                    cancelReply(); //Clear the reply state after sending
                 }
             });
 
@@ -279,6 +673,23 @@
             }
             window.toggleSidebar = function() { document.querySelector('.servers-list').classList.toggle('active'); }
             window.deleteMessage = function(id) { if(confirm("Delete this?")) socket.emit('delete message', id); }
+            window.scrollToMessage = function(id) {
+                const element = document.getElementById(`msg-${id}`);
+                if (element) {
+                    // 1. Scroll to it
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // 2. Flash it so the user sees it
+                    element.classList.add('message-highlight');
+                    
+                    // 3. Remove class after animation (so it can flash again later)
+                    setTimeout(() => {
+                        element.classList.remove('message-highlight');
+                    }, 2000);
+                } else {
+                    alert("Message too old or not loaded!");
+                }
+            }
             window.createRoom = async function() {
                 const name = prompt("Enter room name (letters only):");
                 if (name) {
