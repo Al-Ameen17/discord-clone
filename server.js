@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const app = express();
+app.set('trust proxy', 1);
 const http = require('http').createServer(app);
 const cloudinary = require('cloudinary').v2;
 const bcrypt = require('bcryptjs'); 
