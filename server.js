@@ -5,21 +5,24 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const app = express();
-app.set('trust proxy', 1);
+
+// FIX: Tell Express to trust Render's proxy so Rate Limiting works
+app.set('trust proxy', 1); 
+
 const http = require('http').createServer(app);
 const cloudinary = require('cloudinary').v2;
 const bcrypt = require('bcryptjs'); 
-const jwt = require('jsonwebtoken');        // <--- NEW: Auth Tokens
-const xss = require('xss');                 // <--- NEW: Anti-Hacking (Cross Site Scripting)
-const rateLimit = require('express-rate-limit'); // <--- NEW: Anti-Spam
-const helmet = require('helmet');           // <--- NEW: Header Security
+const jwt = require('jsonwebtoken');        
+const xss = require('xss');                 
+const rateLimit = require('express-rate-limit'); 
+const helmet = require('helmet');           
 
 // --- SECURITY CONFIG ---
 app.use(helmet({
-    contentSecurityPolicy: false, // Disabled for simplicity with external scripts (PeerJS/Socket.io)
+    contentSecurityPolicy: false, 
 }));
 
-// Rate Limiting (Max 100 requests per 15 mins per IP)
+// Rate Limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 100,
@@ -28,7 +31,7 @@ const limiter = rateLimit({
 app.use('/login', limiter);
 app.use('/register', limiter);
 
-// Cloudinary Config (From Environment Variables)
+// Cloudinary Config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
   api_key: process.env.CLOUDINARY_API_KEY, 
@@ -43,16 +46,15 @@ app.use(express.static('public'));
 app.use(express.json());
 
 // --- MIDDLEWARE: VERIFY TOKEN ---
-// This acts as a gatekeeper for protected routes
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) return res.sendStatus(401); // No token? Get out.
+    if (!token) return res.sendStatus(401);
 
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403); // Invalid token? Forbidden.
-        req.user = user; // Attach user info (username) to the request
+        if (err) return res.sendStatus(403);
+        req.user = user;
         next();
     });
 }
@@ -110,7 +112,6 @@ mongoose.connect(process.env.MONGO_URI)
 // --- ROUTES ---
 const activeUsers = new Set();
 
-// 1. PUBLIC ROUTES (Login/Register)
 app.post('/register', async (req, res) => {
     try {
         const { username, password, avatar } = req.body;
@@ -137,22 +138,19 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid credentials" });
         }
 
-        // Check if Secret exists
         if (!process.env.JWT_SECRET) {
-            throw new Error("JWT_SECRET is missing from .env file");
+            console.error("JWT_SECRET missing");
+            return res.status(500).json({ success: false, message: "Server configuration error" });
         }
 
-        // ISSUE JWT TOKEN
         const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
         res.json({ success: true, username: user.username, avatar: user.avatar, token });
     } catch (err) { 
-        console.error("Login Error:", err); // <--- THIS will print the real error to your terminal
-        res.status(500).json({ success: false, message: "Server Error: Check Terminal" }); 
+        console.error("Login Error:", err);
+        res.status(500).json({ success: false }); 
     }
 });
 
-// 2. PROTECTED ROUTES (Require Token)
 app.post('/upload-avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
@@ -169,9 +167,7 @@ app.post('/upload-avatar', authenticateToken, upload.single('avatar'), async (re
 app.post('/update-user-avatar', authenticateToken, async (req, res) => {
     try {
         const { avatarUrl } = req.body;
-        // SECURITY FIX: Use req.user.username (from token), ignore req.body.username
         const username = req.user.username; 
-
         await User.findOneAndUpdate({ username }, { avatar: avatarUrl });
         await Message.updateMany({ user: username }, { avatar: avatarUrl });
         res.json({ success: true });
@@ -189,7 +185,7 @@ app.post('/get-profile', authenticateToken, async (req, res) => {
 app.post('/update-profile', authenticateToken, async (req, res) => {
     try {
         const { bio, status } = req.body;
-        const username = req.user.username; // SECURITY FIX: Trust token only
+        const username = req.user.username; 
         
         await User.findOneAndUpdate({ username }, { bio, status });
         io.emit('status update', { username, status });
@@ -205,7 +201,6 @@ app.get('/rooms', authenticateToken, async (req, res) => {
 app.post('/rooms', authenticateToken, async (req, res) => {
     try {
         const { name } = req.body;
-        // sanitize room name
         const cleanName = xss(name);
         if (!/^[a-z0-9]+$/i.test(cleanName)) return res.status(400).json({success: false});
         
@@ -216,14 +211,14 @@ app.post('/rooms', authenticateToken, async (req, res) => {
     } catch(err) { res.status(500).json({ success: false }); }
 });
 
-// --- SOCKET IO SECURITY MIDDLEWARE ---
+// --- SOCKET IO ---
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error("Authentication error"));
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) return next(new Error("Authentication error"));
-        socket.username = decoded.username; // Bind verified username to socket
+        socket.username = decoded.username; 
         next();
     });
 });
@@ -232,11 +227,10 @@ io.on('connection', (socket) => {
     let currentRoom = 'general';
     socket.join(currentRoom);
 
-    // Initial Load
     Message.find({ room: currentRoom }).sort({ timestamp: -1 }).limit(20)
         .then(messages => socket.emit('load history', messages.reverse()));
 
-    socket.emit('user joined', socket.username); // Use trusted username
+    socket.emit('user joined', socket.username);
 
     socket.on('join room', (newRoom) => {
         socket.leave(currentRoom);
@@ -248,22 +242,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('chat message', (msg) => {
-        // SECURITY FIX: Sanitize input
         const cleanText = xss(msg.text); 
-        
-        // SECURITY FIX: Use socket.username (trusted), not msg.user (untrusted)
         const newMessage = new Message({
             user: socket.username,
             text: cleanText,
             room: currentRoom,
-            avatar: msg.avatar, // We still trust client avatar URL for now, but could fetch from DB
+            avatar: msg.avatar, 
             replyTo: msg.replyTo
         });
 
         newMessage.save().then((savedMessage) => {
             io.to(currentRoom).emit('chat message', savedMessage);
             
-            // Notifications
             if (currentRoom.startsWith('dm_')) {
                 const parts = currentRoom.split('_');
                 const targetUser = parts.find(part => part !== 'dm' && part !== socket.username);
@@ -279,7 +269,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('user joined', async () => {
-        // We ignore the username sent by client, use socket.username
         const username = socket.username;
         activeUsers.add(username);
         socket.join("notify_" + username);
@@ -291,9 +280,7 @@ io.on('connection', (socket) => {
         io.emit('update user list', Array.from(activeUsers));
     });
 
-    socket.on('add reaction', async ({WKmessageId, emoji}) => {
-         // ... (Reaction logic same, but use socket.username)
-         // For brevity, using your existing logic but ensuring user comes from socket
+    socket.on('add reaction', async ({messageId, emoji}) => {
          try {
             const reactionPath = `reactions.${emoji}`;
             const user = socket.username;
@@ -321,7 +308,6 @@ io.on('connection', (socket) => {
         try {
             const msg = await Message.findById(messageId);
             if (!msg) return;
-            // Only allow if it's the author (checked against trusted socket.username)
             if (msg.user === socket.username || socket.username === 'Sergslow') {
                 await Message.findByIdAndDelete(messageId);
                 io.emit('delete message', messageId);
@@ -334,7 +320,7 @@ io.on('connection', (socket) => {
             const msg = await Message.findById(id);
             if (!msg) return;
             if (msg.user === socket.username) {
-                msg.text = xss(newText); // Sanitize edit
+                msg.text = xss(newText); 
                 msg.edited = true;
                 await msg.save();
                 io.emit('update message', msg);
@@ -342,10 +328,8 @@ io.on('connection', (socket) => {
         } catch (err) { console.error(err); }
     });
 
-    // Voice Chat
     socket.on('join-voice', (roomId, peerId) => {
         socket.join(roomId);
-        // Broadcast the peerId, but we know who SENT it (socket.username)
         socket.to(roomId).emit('user-connected-voice', peerId); 
         
         socket.on('disconnect', () => {

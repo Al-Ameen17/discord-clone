@@ -16,6 +16,9 @@
             </div>
             <ul id="rooms-list"></ul>
 
+            <h3 style="margin-top: 20px;">Direct Messages</h3>
+            <ul id="dms-list"></ul>
+
             <h3 style="margin-top: 20px;">Online Users</h3>
             <ul id="users-list"></ul>
 
@@ -25,8 +28,9 @@
                     🔊 General Voice
                 </button>
                 
-                <div id="voice-controls" style="display:none; margin-top:5px; gap:5px;">
+                <div id="voice-controls" style="display:none; margin-top:5px; gap:5px; flex-wrap:wrap;">
                     <button class="control-btn" onclick="toggleMute()" id="mute-btn">🎤 Mute</button>
+                    <button class="control-btn" onclick="shareScreen()" id="screen-btn" style="background:#5865F2;">🖥️ Share</button>
                     <button class="control-btn btn-danger" onclick="leaveVoice()">✖ Leave</button>
                 </div>
             </div>
@@ -44,7 +48,7 @@
         </div>
 
         <div class="content">
-            <button id="menu-btn" onclick="toggleSidebar()">☰</button>
+            <button id="menu-btn" onclick="toggleSidebar()" style="display:none;">☰</button>
             
             <div id="message-container">
                 <p><strong>System:</strong> Welcome to the server!</p>
@@ -156,13 +160,68 @@
                 socket.emit('join room', roomName);
             }
 
+            // --- DM SYSTEM ---
+            const savedDMs = JSON.parse(localStorage.getItem('openDMs')) || [];
+            
+            function renderDMs() {
+                const list = document.getElementById('dms-list');
+                list.innerHTML = '';
+                savedDMs.forEach(user => {
+                    const li = document.createElement('li');
+                    li.className = 'server-name';
+                    
+                    // Check for unread messages
+                    const count = unreadDMs[user] || 0;
+                    const badge = count > 0 ? `<span class="notification-badge" style="background:var(--danger); padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px;">${count}</span>` : '';
+                    
+                    li.innerHTML = `<a href="#" onclick="startDM('${user}')">@ ${user} ${badge}</a>`;
+                    
+                    // Add a tiny "x" to close DM
+                    const closeBtn = document.createElement('span');
+                    closeBtn.innerHTML = '×';
+                    closeBtn.style.cssText = 'float:right; cursor:pointer; color:#666; padding:0 5px;';
+                    closeBtn.onclick = (e) => {
+                        e.stopPropagation(); // Don't trigger the click to join
+                        closeDM(user);
+                    };
+                    li.firstChild.appendChild(closeBtn);
+                    
+                    list.appendChild(li);
+                });
+            }
+
+            window.startDM = function(targetUser) {
+                if (!savedDMs.includes(targetUser)) {
+                    savedDMs.push(targetUser);
+                    localStorage.setItem('openDMs', JSON.stringify(savedDMs));
+                    renderDMs();
+                }
+                if (unreadDMs[targetUser]) {
+                    unreadDMs[targetUser] = 0;
+                    renderDMs();
+                }
+                const roomName = ['dm', username, targetUser].sort().join('_');
+                joinRoom(roomName);
+            }
+
+            window.closeDM = function(targetUser) {
+                const index = savedDMs.indexOf(targetUser);
+                if (index > -1) {
+                    savedDMs.splice(index, 1);
+                    localStorage.setItem('openDMs', JSON.stringify(savedDMs));
+                    renderDMs();
+                    if (currentRoom.includes(targetUser)) {
+                        joinRoom('general'); 
+                    }
+                }
+            }
+
             // --- USER PANEL LOGIC ---
             document.getElementById('current-user-name').innerText = username;
             document.getElementById('current-user-avatar').src = avatar;
 
             window.logout = function() {
                 if (confirm("Are you sure you want to log out?")) {
-                    // Clear EVERYTHING securely
                     localStorage.removeItem('token');
                     localStorage.removeItem('username');
                     localStorage.removeItem('avatar');
@@ -171,7 +230,7 @@
                 }
             }
 
-            // --- AVATAR UPLOAD LOGIC (SECURED) ---
+            // --- AVATAR UPLOAD LOGIC ---
             window.triggerAvatarUpload = function() {
                 document.getElementById('update-avatar-input').click();
             }
@@ -184,18 +243,15 @@
                 formData.append('avatar', fileInput.files[0]);
 
                 try {
-                    // Upload to Cloudinary (Requires Bearer Token)
                     const uploadRes = await fetch('/upload-avatar', { 
                         method: 'POST', 
-                        headers: { 'Authorization': 'Bearer ' + token }, // NOTE: No Content-Type for FormData
+                        headers: { 'Authorization': 'Bearer ' + token }, 
                         body: formData 
                     });
                     const uploadData = await uploadRes.json();
                     
                     if (uploadData.success) {
                         const newAvatarUrl = uploadData.filePath;
-                        
-                        // Update User Profile in DB
                         await fetch('/update-user-avatar', {
                             method: 'POST',
                             headers: getAuthHeaders(),
@@ -204,7 +260,7 @@
 
                         localStorage.setItem('avatar', newAvatarUrl);
                         document.getElementById('current-user-avatar').src = newAvatarUrl;
-                        alert("Avatar updated! It will appear on new messages.");
+                        alert("Avatar updated!");
                         location.reload();
                     }
                 } catch (err) {
@@ -212,7 +268,6 @@
                 }
             }
             
-            // Attach listener manually
             const avatarInput = document.getElementById('update-avatar-input');
             if(avatarInput) {
                 avatarInput.addEventListener('change', window.changeAvatar);
@@ -246,7 +301,7 @@
                 }
             }
 
-            // --- MEDIA UPLOAD (Standard Socket Message) ---
+            // --- MEDIA UPLOAD ---
             window.uploadMedia = function() {
                 const fileInput = document.getElementById('file-input');
                 const file = fileInput.files[0];
@@ -257,7 +312,6 @@
                     }
                     const reader = new FileReader();
                     reader.onload = function(e) {
-                        // We still send media via socket, but socket is now authenticated
                         const messageData = { user: username, text: e.target.result, avatar: avatar };
                         socket.emit('chat message', messageData);
                     };
@@ -266,7 +320,7 @@
                 fileInput.value = ''; 
             }
 
-            // --- PROFILE & STATUS LOGIC (SECURED) ---
+            // --- PROFILE & STATUS LOGIC ---
             window.viewProfile = async function(targetUser) {
                 const res = await fetch('/get-profile', {
                     method: 'POST',
@@ -311,12 +365,13 @@
                 }
             }
 
-            // --- VOICE CHAT SYSTEM ---
+            // --- VOICE CHAT & SCREEN SHARE ---
             const voiceGrid = document.createElement('div'); 
             document.body.append(voiceGrid);
             
             let myPeer;
             let myStream;
+            let myScreenStream; // NEW: Track screen stream
             const peers = {}; 
 
             window.joinVoice = function() {
@@ -332,13 +387,13 @@
                         audio: true
                     }).then(stream => {
                         myStream = stream;
-                        addAudioStream(document.createElement('audio'), stream, true); 
+                        addMediaStream(document.createElement('audio'), stream, true); 
 
                         myPeer.on('call', call => {
                             call.answer(stream); 
                             const audio = document.createElement('audio');
                             call.on('stream', userVideoStream => {
-                                addAudioStream(audio, userVideoStream);
+                                addMediaStream(audio, userVideoStream);
                             });
                         });
 
@@ -362,12 +417,43 @@
                 });
             }
 
+            // NEW: Screen Sharing Logic
+            window.shareScreen = function() {
+                if (myScreenStream) {
+                    // Stop Sharing
+                    myScreenStream.getTracks().forEach(track => track.stop());
+                    myScreenStream = null;
+                    document.getElementById('screen-btn').innerText = "🖥️ Share";
+                    document.getElementById('screen-btn').style.background = "#5865F2";
+                    return;
+                }
+
+                // Start Sharing
+                navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: false 
+                }).then(stream => {
+                    myScreenStream = stream;
+                    document.getElementById('screen-btn').innerText = "🛑 Stop";
+                    document.getElementById('screen-btn').style.background = "#da373c";
+
+                    stream.getVideoTracks()[0].onended = () => { window.shareScreen(); };
+
+                    // Broadcast screen to peers
+                    Object.keys(peers).forEach(userId => {
+                        myPeer.call(userId, stream);
+                    });
+
+                }).catch(err => { console.error("Screen share failed", err); });
+            }
+
             window.leaveVoice = function() {
                 socket.emit('leave-voice', 'general-voice', myPeer.id);
                 socket.off('user-connected-voice');
                 socket.off('user-disconnected-voice');
                 if(myPeer) myPeer.destroy();
                 if(myStream) myStream.getTracks().forEach(track => track.stop());
+                if(myScreenStream) myScreenStream.getTracks().forEach(track => track.stop());
 
                 const btn = document.getElementById('join-voice-btn');
                 btn.classList.remove('voice-active');
@@ -388,17 +474,35 @@
                 const call = myPeer.call(userId, stream);
                 const audio = document.createElement('audio');
                 call.on('stream', userVideoStream => {
-                    addAudioStream(audio, userVideoStream);
+                    addMediaStream(audio, userVideoStream);
                 });
                 call.on('close', () => { audio.remove(); });
                 peers[userId] = call;
             }
 
-            function addAudioStream(audio, stream, isMe = false) {
-                audio.srcObject = stream;
-                audio.addEventListener('loadedmetadata', () => { audio.play(); });
-                if(isMe) audio.muted = true; 
-                voiceGrid.append(audio);
+            // UPDATED: Handle both Audio and Video (Screen Share)
+            function addMediaStream(element, stream, isMe = false) {
+                element.srcObject = stream;
+                element.addEventListener('loadedmetadata', () => { element.play(); });
+                if(isMe) element.muted = true; 
+                
+                // If it's a video track (Screen share), style it
+                if (stream.getVideoTracks().length > 0) {
+                    element = document.createElement('video');
+                    element.srcObject = stream;
+                    element.autoplay = true;
+                    element.style.width = "300px";
+                    element.style.position = "fixed";
+                    element.style.bottom = "20px";
+                    element.style.right = "20px";
+                    element.style.borderRadius = "10px";
+                    element.style.border = "2px solid var(--accent)";
+                    element.style.zIndex = "2000";
+                    // Make it draggable or clickable to close in future versions
+                    element.onclick = () => element.remove(); 
+                }
+
+                voiceGrid.append(element);
             }
             
             socket.on('status update', (data) => {
@@ -527,15 +631,14 @@
             // --- SOCKET LISTENERS ---
             socket.on('connect', () => {
                 console.log(">> Connected. Authenticated as:", username);
-                socket.emit('user joined'); // Server already knows username from Token
+                socket.emit('user joined'); 
                 socket.emit('join room', currentRoom);
             });
             
-            // Handle Auth Errors (Token expired, etc.)
             socket.on('connect_error', (err) => {
                 console.error("Connection Error:", err.message);
                 if (err.message === "Authentication error") {
-                    logout(); // Token bad, kick user out
+                    logout(); 
                 }
             });
 
@@ -564,13 +667,23 @@
                 addRoomToSidebar(name);
             });
 
+            // UPDATED: DM Notification
             socket.on('dm notification', (data) => {
                 if (currentRoom.includes(data.sender)) return; 
+                
                 if (!unreadDMs[data.sender]) unreadDMs[data.sender] = 0;
                 unreadDMs[data.sender]++;
+                
+                // Add to saved DMs if new
+                if (!savedDMs.includes(data.sender)) {
+                    savedDMs.push(data.sender);
+                    localStorage.setItem('openDMs', JSON.stringify(savedDMs));
+                }
+                
                 const audio = document.getElementById('notify-sound');
                 if(audio) audio.play().catch(e => console.log("Audio blocked"));
-                socket.emit('request user list'); 
+                
+                renderDMs(); // Update sidebar
             });
 
             socket.on('update user list', (users) => {
@@ -584,12 +697,10 @@
                     li.style.padding = "5px 10px";
                     
                     li.onclick = () => {
-                        unreadDMs[user] = 0; 
                         startDM(user);
                     };
-                    const count = unreadDMs[user] || 0;
-                    const badge = count > 0 ? `<span class="notification-badge">${count}</span>` : '';
-                    li.innerHTML = `<span style="display:flex; align-items:center;"><span style="font-size: 1.2em; margin-right: 5px;">💬</span> ${user}</span>${badge}`;
+                    
+                    li.innerHTML = `<span style="display:flex; align-items:center;"><span style="font-size: 1.2em; margin-right: 5px;">💬</span> ${user}</span>`;
                     li.onmouseover = () => { li.style.backgroundColor = '#35373c'; };
                     li.onmouseout = () => { li.style.backgroundColor = 'transparent'; };
                     list.appendChild(li);
@@ -608,7 +719,7 @@
             input.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && input.value) {
                     const messageData = {
-                        user: username, // Server will override this with trusted username
+                        user: username, 
                         text: input.value,
                         avatar: avatar,
                         replyTo: replyingTo
@@ -624,9 +735,8 @@
                 socket.emit('typing', { user: username, room: currentRoom });
             });
 
-            // Make helpers global
             window.sendReaction = function(messageId, emoji) {
-                socket.emit('add reaction', { messageId, emoji }); // Server determines User
+                socket.emit('add reaction', { messageId, emoji });
             }
             window.toggleSidebar = function() { document.querySelector('.servers-list').classList.toggle('active'); }
             window.deleteMessage = function(id) { if(confirm("Delete this?")) socket.emit('delete message', id); }
@@ -641,22 +751,17 @@
                 }
             }
             
-            // SECURED: Create Room using Token
             window.createRoom = async function() {
                 const name = prompt("Enter room name (letters only):");
                 if (name) {
                     await fetch('/rooms', { 
                         method: 'POST', 
-                        headers: getAuthHeaders(), // <--- SECURED HEADER
+                        headers: getAuthHeaders(), 
                         body: JSON.stringify({ name }) 
                     });
                 }
             }
             
-            window.startDM = function(targetUser) {
-                const roomName = ['dm', username, targetUser].sort().join('_');
-                joinRoom(roomName);
-            }
             window.addRoomToSidebar = function(name) {
                 const list = document.getElementById('rooms-list');
                 const li = document.createElement('li');
@@ -665,16 +770,18 @@
                 list.appendChild(li);
             }
 
-            // SECURED: Load Rooms using Token
             async function loadRooms() {
                 const res = await fetch('/rooms', { 
-                    headers: getAuthHeaders() // <--- SECURED HEADER
+                    headers: getAuthHeaders() 
                 });
                 const rooms = await res.json();
                 document.getElementById('rooms-list').innerHTML = '';
                 rooms.forEach(room => addRoomToSidebar(room.name));
             }
             loadRooms();
+            
+            // Initial DM Render
+            renderDMs();
         </script>
     </body>
 </html>
