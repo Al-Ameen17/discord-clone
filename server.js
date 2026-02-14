@@ -8,11 +8,7 @@ const app = express();
 const http = require('http').createServer(app);
 const cloudinary = require('cloudinary').v2;
 
-cloudinary.config({
-  cloud_name: 'dt7hwh7yo', 
-  api_key: '897683664172516', 
-  api_secret: 'gdZAlOQtkiLH8Vu1PpvUl_YhofQ' 
-});
+
 // FIX 1: Increase message size limit to 10MB for images
 const io = require('socket.io')(http, {
     maxHttpBufferSize: 1e7 // Reduced to 10MB for memory safety
