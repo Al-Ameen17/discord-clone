@@ -6,7 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
-// FIX: Tell Express to trust Render's proxy so Rate Limiting works
+// --- CRITICAL FIX FOR RENDER DEPLOYMENT ---
+// This prevents the "X-Forwarded-For" crash by trusting the proxy
 app.set('trust proxy', 1); 
 
 const http = require('http').createServer(app);

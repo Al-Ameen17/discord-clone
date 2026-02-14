@@ -2,7 +2,7 @@
 <html>
     <head>
         <title>DihCord</title>
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
         <link rel="stylesheet" href="styles.css">
     </head>
@@ -371,7 +371,7 @@
             
             let myPeer;
             let myStream;
-            let myScreenStream; // NEW: Track screen stream
+            let myScreenStream; 
             const peers = {}; 
 
             window.joinVoice = function() {
@@ -417,7 +417,6 @@
                 });
             }
 
-            // NEW: Screen Sharing Logic
             window.shareScreen = function() {
                 if (myScreenStream) {
                     // Stop Sharing
@@ -480,13 +479,11 @@
                 peers[userId] = call;
             }
 
-            // UPDATED: Handle both Audio and Video (Screen Share)
             function addMediaStream(element, stream, isMe = false) {
                 element.srcObject = stream;
                 element.addEventListener('loadedmetadata', () => { element.play(); });
                 if(isMe) element.muted = true; 
                 
-                // If it's a video track (Screen share), style it
                 if (stream.getVideoTracks().length > 0) {
                     element = document.createElement('video');
                     element.srcObject = stream;
@@ -498,7 +495,6 @@
                     element.style.borderRadius = "10px";
                     element.style.border = "2px solid var(--accent)";
                     element.style.zIndex = "2000";
-                    // Make it draggable or clickable to close in future versions
                     element.onclick = () => element.remove(); 
                 }
 
@@ -628,7 +624,6 @@
                 }
             }
 
-            // --- SOCKET LISTENERS ---
             socket.on('connect', () => {
                 console.log(">> Connected. Authenticated as:", username);
                 socket.emit('user joined'); 
@@ -667,14 +662,12 @@
                 addRoomToSidebar(name);
             });
 
-            // UPDATED: DM Notification
             socket.on('dm notification', (data) => {
                 if (currentRoom.includes(data.sender)) return; 
                 
                 if (!unreadDMs[data.sender]) unreadDMs[data.sender] = 0;
                 unreadDMs[data.sender]++;
                 
-                // Add to saved DMs if new
                 if (!savedDMs.includes(data.sender)) {
                     savedDMs.push(data.sender);
                     localStorage.setItem('openDMs', JSON.stringify(savedDMs));
@@ -683,7 +676,7 @@
                 const audio = document.getElementById('notify-sound');
                 if(audio) audio.play().catch(e => console.log("Audio blocked"));
                 
-                renderDMs(); // Update sidebar
+                renderDMs(); 
             });
 
             socket.on('update user list', (users) => {
@@ -780,7 +773,6 @@
             }
             loadRooms();
             
-            // Initial DM Render
             renderDMs();
         </script>
     </body>
