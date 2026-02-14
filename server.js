@@ -85,18 +85,23 @@ const Message = mongoose.model('Message', new mongoose.Schema({
     replyTo: { id: String, user: String, text: String }
 }));
 
+// UPDATED USER SCHEMA: Friends Support
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     avatar: { type: String },
     bio: { type: String, default: "Hi, I'm new to DihCord!" },
-    status: { type: String, default: "online" }
+    status: { type: String, default: "online" },
+    friends: [{ type: String }], // List of usernames
+    friendRequests: [{ 
+        from: String, 
+        status: { type: String, enum: ['pending', 'accepted'], default: 'pending' }
+    }]
 }));
 
-// UPDATED: Room Schema supports types
 const Room = mongoose.model('Room', new mongoose.Schema({
     name: { type: String, required: true, unique: true },
-    type: { type: String, enum: ['text', 'voice'], default: 'text' } // 'text' or 'voice'
+    type: { type: String, enum: ['text', 'voice'], default: 'text' }
 }));
 
 // --- DB CONNECTION ---
@@ -104,11 +109,10 @@ mongoose.connect(process.env.MONGO_URI)
     .then(async () => {
         console.log('✅ Connected to MongoDB!');
         if (await Room.countDocuments() === 0) {
-            // Default Channels
             await new Room({ name: 'general', type: 'text' }).save();
             await new Room({ name: 'gaming', type: 'text' }).save();
             await new Room({ name: 'music', type: 'text' }).save();
-            await new Room({ name: 'Lounge', type: 'voice' }).save(); // Default Voice
+            await new Room({ name: 'Lounge', type: 'voice' }).save();
         }
     })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
@@ -116,21 +120,33 @@ mongoose.connect(process.env.MONGO_URI)
 // --- ROUTES ---
 const activeUsers = new Set();
 
-app.post('/register', async (req, res) => {
+app.post('/register', upload.single('avatar'), async (req, res) => {
     try {
-        const { username, password, avatar } = req.body;
+        const { username, password } = req.body;
         if (!username || !password) return res.status(400).json({ success: false, message: "Missing fields" });
 
         const existingUser = await User.findOne({ username });
         if (existingUser) return res.status(400).json({ success: false, message: "Username taken" });
 
+        let avatarUrl = `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
+
+        if (req.file) {
+            const result = await cloudinary.uploader.upload(req.file.path, {
+                folder: "dihcord_avatars",
+                width: 300, height: 300, crop: "fill"
+            });
+            avatarUrl = result.secure_url;
+            fs.unlinkSync(req.file.path);
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        const finalAvatar = avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${username}`;
-        
-        const newUser = new User({ username, password: hashedPassword, avatar: finalAvatar });
+        const newUser = new User({ username, password: hashedPassword, avatar: avatarUrl });
         await newUser.save();
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error(err);
+        res.status(500).json({ success: false, message: "Registration failed" }); 
+    }
 });
 
 app.post('/login', async (req, res) => {
@@ -196,15 +212,79 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
+// --- FRIEND ROUTES ---
+app.post('/add-friend', authenticateToken, async (req, res) => {
+    try {
+        const { targetUsername } = req.body;
+        const sender = req.user.username;
+
+        if (sender === targetUsername) return res.status(400).json({ success: false, message: "Cannot add yourself" });
+
+        const target = await User.findOne({ username: targetUsername });
+        if (!target) return res.status(404).json({ success: false, message: "User not found" });
+
+        if (target.friends.includes(sender)) return res.status(400).json({ success: false, message: "Already friends" });
+        
+        // Check if request already sent
+        const alreadySent = target.friendRequests.find(r => r.from === sender && r.status === 'pending');
+        if (alreadySent) return res.status(400).json({ success: false, message: "Request already sent" });
+
+        // Add Request
+        target.friendRequests.push({ from: sender, status: 'pending' });
+        await target.save();
+
+        io.to("notify_" + targetUsername).emit('friend request', { from: sender });
+        res.json({ success: true, message: "Request sent!" });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+app.post('/accept-friend', authenticateToken, async (req, res) => {
+    try {
+        const { requester } = req.body;
+        const acceptor = req.user.username;
+
+        const user = await User.findOne({ username: acceptor });
+        const request = user.friendRequests.find(r => r.from === requester && r.status === 'pending');
+
+        if (!request) return res.status(400).json({ success: false, message: "No request found" });
+
+        // Add to both friend lists
+        await User.findOneAndUpdate({ username: acceptor }, { 
+            $push: { friends: requester },
+            $pull: { friendRequests: { from: requester } } 
+        });
+        await User.findOneAndUpdate({ username: requester }, { 
+            $push: { friends: acceptor } 
+        });
+
+        io.to("notify_" + requester).emit('friend accepted', { by: acceptor });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+app.get('/get-friends', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.user.username });
+        // Get details for all friends to show avatars/status
+        const friendsData = await User.find({ username: { $in: user.friends } })
+            .select('username avatar status bio');
+        
+        res.json({ 
+            success: true, 
+            friends: friendsData, 
+            requests: user.friendRequests 
+        });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
 app.get('/rooms', authenticateToken, async (req, res) => {
     const rooms = await Room.find();
     res.json(rooms);
 });
 
-// UPDATED: Create Room (Handles Text or Voice)
 app.post('/rooms', authenticateToken, async (req, res) => {
     try {
-        const { name, type } = req.body; // Accept type
+        const { name, type } = req.body; 
         const cleanName = xss(name);
         const cleanType = type === 'voice' ? 'voice' : 'text';
 
@@ -212,7 +292,7 @@ app.post('/rooms', authenticateToken, async (req, res) => {
         
         const newRoom = new Room({ name: cleanName, type: cleanType });
         await newRoom.save();
-        io.emit('new room', { name: cleanName, type: cleanType }); // Emit object, not just string
+        io.emit('new room', { name: cleanName, type: cleanType }); 
         res.json({ success: true });
     } catch(err) { res.status(500).json({ success: false }); }
 });
@@ -334,7 +414,6 @@ io.on('connection', (socket) => {
         } catch (err) { console.error(err); }
     });
 
-    // Voice Chat - Supports multiple rooms dynamically
     socket.on('join-voice', (roomId, peerId) => {
         socket.join(roomId);
         socket.to(roomId).emit('user-connected-voice', peerId); 

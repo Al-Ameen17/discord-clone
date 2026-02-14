@@ -62,8 +62,7 @@
 
             const data = await res.json();
             if (data.success) {
-                // SAVE TOKEN SECURELY
-                localStorage.setItem('token', data.token); // <--- NEW
+                localStorage.setItem('token', data.token); 
                 localStorage.setItem('username', data.username);
                 localStorage.setItem('avatar', data.avatar);
                 window.location.href = '/';
@@ -77,38 +76,24 @@
             const password = document.getElementById('password').value;
             const fileInput = document.getElementById('avatar-input');
             
-            let avatarUrl = null;
-
-            // 1. Upload Image First (if selected)
+            // USE FORMDATA FOR REGISTRATION (Handles both fields + file)
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
             if (fileInput.files.length > 0) {
-                const formData = new FormData();
                 formData.append('avatar', fileInput.files[0]);
-
-                try {
-                    const uploadRes = await fetch('/upload-avatar', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const uploadData = await uploadRes.json();
-                    if (uploadData.success) {
-                        avatarUrl = uploadData.filePath;
-                    }
-                } catch (err) {
-                    console.error("Upload failed", err);
-                }
             }
 
-            // 2. Register User with Avatar URL
             const res = await fetch('/register', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, avatar: avatarUrl })
+                // Note: Do NOT set Content-Type header when using FormData; fetch does it automatically
+                body: formData
             });
 
             const data = await res.json();
             if (data.success) {
                 alert("Account created! Please log in.");
-                toggleMode(); // Switch back to login
+                toggleMode(); 
             } else {
                 showError(data.message);
             }

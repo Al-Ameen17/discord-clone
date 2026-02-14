@@ -11,6 +11,10 @@
         
         <div class="servers-list">
             
+            <div class="home-btn" onclick="showHome()">
+                <span>👋</span> Friends
+            </div>
+
             <div class="section-header">
                 <h3>Text Channels</h3>
                 <button onclick="createRoom('text')" class="add-btn">+</button>
@@ -48,9 +52,7 @@
                     <img id="current-user-avatar" src="" alt="Avatar">
                     <span id="current-user-name">Loading...</span>
                 </div>
-                
                 <input type="file" id="update-avatar-input" accept="image/*" style="display:none;">
-                
                 <button onclick="logout()" class="logout-btn" title="Log Out">🚪</button>
             </div>
         </div>
@@ -58,26 +60,38 @@
         <div class="content">
             <button id="menu-btn" onclick="toggleSidebar()">☰</button>
             
-            <div id="message-container">
-                <p><strong>System:</strong> Welcome to the server!</p>
+            <div id="friends-view" class="friends-view">
+                <div class="friends-nav">
+                    <div class="friends-header">
+                        <span>👋</span> Friends
+                    </div>
+                    <div class="friend-tab active" onclick="renderFriends('online')">Online</div>
+                    <div class="friend-tab" onclick="renderFriends('all')">All</div>
+                    <div class="friend-tab" onclick="renderFriends('pending')">Pending</div>
+                    <div class="add-friend-btn" onclick="renderFriends('add')">Add Friend</div>
+                </div>
+                <div id="friends-content" class="friends-content">
+                    </div>
             </div>
 
-            <div class="input-area">
-                <div id="typing-indicator"></div> 
-                
-                <div id="reply-preview">
-                    <span id="reply-text">Replying to...</span>
-                    <button onclick="cancelReply()" style="background:none; border:none; color:#dbdee1; cursor:pointer;">✖</button>
+            <div id="chat-view" style="display:flex; flex-direction:column; height:100%; flex:1;">
+                <div id="message-container">
+                    <p><strong>System:</strong> Welcome to the server!</p>
                 </div>
 
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <button onclick="document.getElementById('file-input').click()" class="toolbar-btn">📎 Media</button>
-                    <button id="emoji-btn" onclick="toggleEmojiPicker()" class="toolbar-btn">😀 Emoji</button>
+                <div class="input-area">
+                    <div id="typing-indicator"></div> 
+                    <div id="reply-preview">
+                        <span id="reply-text">Replying to...</span>
+                        <button onclick="cancelReply()" style="background:none; border:none; color:#dbdee1; cursor:pointer;">✖</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button onclick="document.getElementById('file-input').click()" class="toolbar-btn">📎 Media</button>
+                        <button id="emoji-btn" onclick="toggleEmojiPicker()" class="toolbar-btn">😀 Emoji</button>
+                    </div>
+                    <input type="file" id="file-input" accept="image/*,video/*" style="display: none;" onchange="uploadMedia()">
+                    <input type="text" id="message-input" placeholder="Message #general...">
                 </div>
-
-                <input type="file" id="file-input" accept="image/*,video/*" style="display: none;" onchange="uploadMedia()">
-                
-                <input type="text" id="message-input" placeholder="Message #general...">
             </div>
         </div>
 
@@ -86,15 +100,12 @@
                 <div class="close-modal" onclick="document.getElementById('profile-modal').style.display='none'">✕</div>
                 <div class="profile-banner"></div>
                 <img id="modal-avatar" class="profile-avatar" src="">
-                
                 <h2 id="modal-name" class="profile-name">User</h2>
                 <div id="modal-status" class="profile-status">online</div>
-                
                 <div class="profile-bio">
                     <strong>About Me:</strong><br>
                     <span id="modal-bio">...</span>
                 </div>
-
                 <div id="edit-controls" style="display:none; padding: 10px;">
                     <input type="text" id="edit-bio-input" placeholder="New Bio..." style="width:70%; padding:5px; border-radius:5px; border:none;">
                     <select id="edit-status-input" style="padding:5px; border-radius:5px;">
@@ -112,7 +123,6 @@
         <script type="module">
             import { EmojiButton } from 'https://unpkg.com/@joeattardi/emoji-button@4.6.4/dist/index.js';
 
-            // --- SECURITY & INITIALIZATION ---
             const token = localStorage.getItem('token');
             const username = localStorage.getItem('username');           
             const avatar = localStorage.getItem('avatar'); 
@@ -128,7 +138,125 @@
             let currentRoom = localStorage.getItem('lastRoom') || 'general';
             let unreadDMs = {}; 
             let currentVoiceRoom = null;
+            let myFriends = [];
+            let myRequests = [];
 
+            // --- FRIENDS LOGIC ---
+            window.showHome = function() {
+                document.getElementById('friends-view').style.display = 'flex';
+                document.getElementById('chat-view').style.display = 'none';
+                renderFriends('online');
+            }
+
+            function showChat() {
+                document.getElementById('friends-view').style.display = 'none';
+                document.getElementById('chat-view').style.display = 'flex';
+            }
+
+            async function fetchFriends() {
+                try {
+                    const res = await fetch('/get-friends', { headers: getAuthHeaders() });
+                    const data = await res.json();
+                    if(data.success) {
+                        myFriends = data.friends;
+                        myRequests = data.requests;
+                    }
+                } catch(e) { console.error(e); }
+            }
+
+            window.renderFriends = async function(tab) {
+                await fetchFriends();
+                const container = document.getElementById('friends-content');
+                container.innerHTML = '';
+
+                document.querySelectorAll('.friend-tab').forEach(el => el.classList.remove('active'));
+                
+                if (tab === 'add') {
+                    container.innerHTML = `
+                        <div class="add-friend-form">
+                            <h3>ADD FRIEND</h3>
+                            <p style="color: #bbb; font-size: 0.9em;">You can add friends with their username.</p>
+                            <input type="text" id="friend-request-input" class="add-friend-input" placeholder="Enter a Username">
+                            <button onclick="sendFriendRequest()" class="send-request-btn">Send Friend Request</button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let list = [];
+                if (tab === 'online') {
+                    document.querySelector('.friend-tab:nth-child(2)').classList.add('active');
+                    list = myFriends.filter(f => f.status !== 'offline');
+                } else if (tab === 'all') {
+                    document.querySelector('.friend-tab:nth-child(3)').classList.add('active');
+                    list = myFriends;
+                } else if (tab === 'pending') {
+                    document.querySelector('.friend-tab:nth-child(4)').classList.add('active');
+                    myRequests.filter(r => r.status === 'pending').forEach(req => {
+                        container.innerHTML += `
+                            <div class="request-item">
+                                <span style="color:white; font-weight:bold;">${req.from}</span>
+                                <div>
+                                    <button onclick="acceptFriend('${req.from}')" style="color:#22c55e;">✔</button>
+                                </div>
+                            </div>`;
+                    });
+                    if (myRequests.length === 0) showEmpty(container);
+                    return;
+                }
+
+                if (list.length === 0) {
+                    showEmpty(container);
+                } else {
+                    list.forEach(friend => {
+                        container.innerHTML += `
+                            <div class="friend-row" onclick="startDM('${friend.username}')">
+                                <img src="${friend.avatar}" class="friend-avatar">
+                                <div class="friend-details">
+                                    <span class="friend-name">${friend.username}</span>
+                                    <span class="friend-status">${friend.status}</span>
+                                </div>
+                                <div class="friend-actions">
+                                    <button title="Message">💬</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            // FIX: Updated Empty State Image and Text
+            function showEmpty(container) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <img class="empty-state-img" src="https://raw.githubusercontent.com/SAWARATSUKI/KawaiiLogos/main/Response/404%20NotFound.png" alt="Empty State">
+                        <p>It's quiet here... too quiet. Add some friends!</p>
+                    </div>`;
+            }
+
+            window.sendFriendRequest = async function() {
+                const target = document.getElementById('friend-request-input').value;
+                const res = await fetch('/add-friend', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ targetUsername: target })
+                });
+                const data = await res.json();
+                alert(data.message);
+                if (data.success) document.getElementById('friend-request-input').value = '';
+            }
+
+            window.acceptFriend = async function(requester) {
+                await fetch('/accept-friend', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ requester })
+                });
+                renderFriends('all');
+            }
+
+            // --- INITIAL SETUP ---
+            showChat(); 
             updateRoomUI(currentRoom);
 
             function getAuthHeaders() {
@@ -138,24 +266,19 @@
                 };
             }
 
-            const picker = new EmojiButton({
-                position: 'top-start',
-                theme: 'dark', 
-                autoHide: false
-            });
-
+            const picker = new EmojiButton({ position: 'top-start', theme: 'dark', autoHide: false });
             picker.on('emoji', selection => {
                 const input = document.getElementById('message-input');
                 input.value += selection.emoji;
                 input.focus();
             });
-
             window.toggleEmojiPicker = function() {
                 const trigger = document.getElementById('emoji-btn');
                 picker.togglePicker(trigger);
             }
 
             window.joinRoom = function(roomName) {
+                showChat(); 
                 currentRoom = roomName;
                 localStorage.setItem('lastRoom', roomName);
                 updateRoomUI(roomName); 
@@ -164,28 +287,20 @@
             }
 
             const savedDMs = JSON.parse(localStorage.getItem('openDMs')) || [];
-            
             function renderDMs() {
                 const list = document.getElementById('dms-list');
                 list.innerHTML = '';
                 savedDMs.forEach(user => {
                     const li = document.createElement('li');
                     li.className = 'user-item';
-                    
                     const count = unreadDMs[user] || 0;
                     const badge = count > 0 ? `<span class="notification-badge" style="background:var(--danger); padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px;">${count}</span>` : '';
-                    
                     li.innerHTML = `<a href="#" onclick="startDM('${user}')" style="width:100%;">@ ${user} ${badge}</a>`;
-                    
                     const closeBtn = document.createElement('span');
                     closeBtn.innerHTML = '×';
                     closeBtn.style.cssText = 'float:right; cursor:pointer; color:#666; padding:0 5px;';
-                    closeBtn.onclick = (e) => {
-                        e.stopPropagation(); 
-                        closeDM(user);
-                    };
+                    closeBtn.onclick = (e) => { e.stopPropagation(); closeDM(user); };
                     li.firstChild.appendChild(closeBtn);
-                    
                     list.appendChild(li);
                 });
             }
@@ -210,9 +325,7 @@
                     savedDMs.splice(index, 1);
                     localStorage.setItem('openDMs', JSON.stringify(savedDMs));
                     renderDMs();
-                    if (currentRoom.includes(targetUser)) {
-                        joinRoom('general'); 
-                    }
+                    if (currentRoom.includes(targetUser)) { joinRoom('general'); }
                 }
             }
 
@@ -229,17 +342,12 @@
                 }
             }
 
-            window.triggerAvatarUpload = function() {
-                document.getElementById('update-avatar-input').click();
-            }
-
+            window.triggerAvatarUpload = function() { document.getElementById('update-avatar-input').click(); }
             window.changeAvatar = async function() {
                 const fileInput = document.getElementById('update-avatar-input');
                 if (fileInput.files.length === 0) return;
-
                 const formData = new FormData();
                 formData.append('avatar', fileInput.files[0]);
-
                 try {
                     const uploadRes = await fetch('/upload-avatar', { 
                         method: 'POST', 
@@ -247,7 +355,6 @@
                         body: formData 
                     });
                     const uploadData = await uploadRes.json();
-                    
                     if (uploadData.success) {
                         const newAvatarUrl = uploadData.filePath;
                         await fetch('/update-user-avatar', {
@@ -255,24 +362,18 @@
                             headers: getAuthHeaders(),
                             body: JSON.stringify({ avatarUrl: newAvatarUrl })
                         });
-
                         localStorage.setItem('avatar', newAvatarUrl);
                         document.getElementById('current-user-avatar').src = newAvatarUrl;
                         alert("Avatar updated!");
                         location.reload();
                     }
-                } catch (err) {
-                    alert("Failed to update avatar");
-                }
+                } catch (err) { alert("Failed to update avatar"); }
             }
             
             const avatarInput = document.getElementById('update-avatar-input');
-            if(avatarInput) {
-                avatarInput.addEventListener('change', window.changeAvatar);
-            }
+            if(avatarInput) { avatarInput.addEventListener('change', window.changeAvatar); }
 
             let replyingTo = null; 
-
             window.startReply = function(id, user, text) {
                 replyingTo = { id, user, text };
                 const bar = document.getElementById('reply-preview');
@@ -281,7 +382,6 @@
                 label.innerHTML = `Replying to <strong>@${user}</strong>`;
                 document.getElementById('message-input').focus();
             }
-
             window.cancelReply = function() {
                 replyingTo = null;
                 document.getElementById('reply-preview').style.display = 'none';
@@ -302,10 +402,7 @@
                 const fileInput = document.getElementById('file-input');
                 const file = fileInput.files[0];
                 if (file) {
-                    if (file.size > 10 * 1024 * 1024) {
-                        alert("File is too large! Max 10MB.");
-                        return;
-                    }
+                    if (file.size > 10 * 1024 * 1024) { alert("File is too large! Max 10MB."); return; }
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         const messageData = { user: username, text: e.target.result, avatar: avatar };
@@ -323,13 +420,11 @@
                     body: JSON.stringify({ username: targetUser })
                 });
                 const data = await res.json();
-                
                 if (data.success) {
                     document.getElementById('modal-name').innerText = data.username;
                     document.getElementById('modal-avatar').src = data.avatar;
                     document.getElementById('modal-bio').innerText = data.bio;
                     document.getElementById('modal-status').innerText = data.status.toUpperCase();
-                    
                     const isMe = (targetUser === username);
                     document.getElementById('edit-controls').style.display = isMe ? 'block' : 'none';
                     if (isMe) {
@@ -343,24 +438,19 @@
             window.saveProfile = async function() {
                 const newBio = document.getElementById('edit-bio-input').value;
                 const newStatus = document.getElementById('edit-status-input').value;
-
                 await fetch('/update-profile', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ bio: newBio, status: newStatus })
                 });
-
                 document.getElementById('profile-modal').style.display = 'none';
                 alert("Profile Updated!");
             }
 
             window.closeProfile = function(e) {
-                if (e.target.id === 'profile-modal') {
-                    document.getElementById('profile-modal').style.display = 'none';
-                }
+                if (e.target.id === 'profile-modal') { document.getElementById('profile-modal').style.display = 'none'; }
             }
 
-            // --- VOICE CHAT & SCREEN SHARE ---
             const voiceGrid = document.createElement('div'); 
             document.body.append(voiceGrid);
             
@@ -369,13 +459,8 @@
             let myScreenStream; 
             const peers = {}; 
 
-            // UPDATED: Dynamic Join Voice
             window.joinVoice = function(roomName) {
-                // If already in a room, leave it first
-                if (currentVoiceRoom) {
-                    leaveVoice();
-                }
-
+                if (currentVoiceRoom) { leaveVoice(); }
                 const dock = document.getElementById('voice-dock');
                 
                 const peerId = 'dihcord-' + username.replace(/[^a-zA-Z0-9]/g, '') + '-' + Math.floor(Math.random()*1000);
@@ -397,15 +482,12 @@
                             });
                         });
 
-                        // Emit with dynamic room name
                         socket.emit('join-voice', roomName, id);
                         currentVoiceRoom = roomName;
 
-                        // UI Updates
                         dock.style.display = 'block';
                         document.getElementById('active-voice-room').innerText = roomName;
 
-                        // Highlight active room in list
                         document.querySelectorAll('.voice-item').forEach(el => el.classList.remove('active-voice'));
                         const activeLink = document.querySelector(`a[onclick="joinVoice('${roomName}')"]`);
                         if(activeLink) activeLink.parentElement.classList.add('active-voice');
@@ -418,41 +500,27 @@
                             if (peers[userId]) peers[userId].close();
                         });
 
-                    }).catch(err => {
-                        alert("Could not access microphone! " + err);
-                    });
+                    }).catch(err => { alert("Could not access microphone! " + err); });
                 });
             }
 
             window.shareScreen = function() {
                 if (myScreenStream) {
-                    // Stop Sharing
                     myScreenStream.getTracks().forEach(track => track.stop());
                     myScreenStream = null;
                     document.getElementById('screen-btn').innerText = "🖥️";
                     return;
                 }
-
-                // Start Sharing
-                navigator.mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: false 
-                }).then(stream => {
+                navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).then(stream => {
                     myScreenStream = stream;
                     document.getElementById('screen-btn').innerText = "🛑";
-
                     stream.getVideoTracks()[0].onended = () => { window.shareScreen(); };
-
-                    Object.keys(peers).forEach(userId => {
-                        myPeer.call(userId, stream);
-                    });
-
+                    Object.keys(peers).forEach(userId => { myPeer.call(userId, stream); });
                 }).catch(err => { console.error("Screen share failed", err); });
             }
 
             window.leaveVoice = function() {
                 if (!currentVoiceRoom) return;
-                
                 socket.emit('leave-voice', currentVoiceRoom, myPeer.id);
                 socket.off('user-connected-voice');
                 socket.off('user-disconnected-voice');
@@ -460,7 +528,6 @@
                 if(myStream) myStream.getTracks().forEach(track => track.stop());
                 if(myScreenStream) myScreenStream.getTracks().forEach(track => track.stop());
 
-                // Reset UI
                 document.getElementById('voice-dock').style.display = 'none';
                 document.querySelectorAll('.voice-item').forEach(el => el.classList.remove('active-voice'));
                 currentVoiceRoom = null;
@@ -485,8 +552,11 @@
                 peers[userId] = call;
             }
 
+            // AUDIO FIX: Added autoplay and playsInline
             function addMediaStream(element, stream, isMe = false) {
                 element.srcObject = stream;
+                element.autoplay = true;
+                element.playsInline = true; 
                 element.addEventListener('loadedmetadata', () => { element.play(); });
                 if(isMe) element.muted = true; 
                 
@@ -494,6 +564,7 @@
                     element = document.createElement('video');
                     element.srcObject = stream;
                     element.autoplay = true;
+                    element.playsInline = true;
                     element.style.width = "300px";
                     element.style.position = "fixed";
                     element.style.bottom = "20px";
@@ -503,33 +574,23 @@
                     element.style.zIndex = "2000";
                     element.onclick = () => element.remove(); 
                 }
-
                 voiceGrid.append(element);
             }
             
-            socket.on('status update', (data) => {
-                console.log(data.username + " is now " + data.status);
-            });
+            socket.on('status update', (data) => { console.log(data.username + " is now " + data.status); });
+            socket.on('friend request', (data) => { alert("New Friend Request from " + data.from); renderFriends('pending'); });
+            socket.on('friend accepted', (data) => { alert(data.by + " accepted your request!"); renderFriends('all'); });
 
            function addMessageToScreen(msg) {
                 const container = document.getElementById('message-container');
                 let item = document.getElementById(`msg-${msg._id}`);
                 const isUpdate = !!item; 
-
-                let previousElement;
-                if (isUpdate) {
-                    previousElement = item.previousElementSibling;
-                } else {
-                    previousElement = container.lastElementChild;
-                }
-
+                let previousElement = isUpdate ? item.previousElementSibling : container.lastElementChild;
                 let isGrouped = false;
                 if (previousElement && previousElement.dataset.user === msg.user) {
                     const prevTime = parseInt(previousElement.dataset.timestamp);
                     const thisTime = new Date(msg.timestamp || Date.now()).getTime();
-                    if (thisTime - prevTime < 5 * 60 * 1000) {
-                        isGrouped = true;
-                    }
+                    if (thisTime - prevTime < 5 * 60 * 1000) { isGrouped = true; }
                 }
 
                 if (!item) {
@@ -552,11 +613,9 @@
                 else if (isImage) messageBody = `<img src="${msg.text}" class="media-attachment">`;
 
                 const editedHtml = msg.edited ? `<span class="edited-tag">(edited)</span>` : '';
-
                 let replyHtml = '';
                 if (msg.replyTo) {
-                    replyHtml = `
-                        <div class="reply-quote" onclick="scrollToMessage('${msg.replyTo.id}')">
+                    replyHtml = `<div class="reply-quote" onclick="scrollToMessage('${msg.replyTo.id}')">
                             <span style="font-weight:bold; margin-right:5px;">@${msg.replyTo.user}</span>
                             <span style="opacity:0.8; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:200px;">${msg.replyTo.text}</span>
                         </div>`;
@@ -583,22 +642,18 @@
 
                 if (isGrouped) {
                     item.className = "message-row msg-compact";
-                    item.innerHTML = `
-                        <div class="timestamp-hover">${timeString}</div>
+                    item.innerHTML = `<div class="timestamp-hover">${timeString}</div>
                         <div style="flex:1;">
                             <div style="display:flex; align-items:center;">
                                 <div style="color:var(--text-normal); line-height:1.4; flex:1;">${messageBody} ${editedHtml}</div>
                                 ${actionButtons}
                             </div>
                             ${reactionsHtml}
-                        </div>
-                    `;
+                        </div>`;
                 } else {
                     item.className = "message-row msg-header";
                     const userAvatar = msg.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${msg.user}`;
-                    
-                    item.innerHTML = `
-                        <img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; margin-top:2px;">
+                    item.innerHTML = `<img src="${userAvatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; margin-top:2px;">
                         <div style="flex: 1;">
                             ${replyHtml}
                             <div style="display: flex; align-items: center; margin-bottom: 2px;">
@@ -606,28 +661,21 @@
                                 <span style="font-size: 0.75em; color: var(--text-muted);" title="${fullDateString}">${timeString}</span>
                                 ${actionButtons}
                             </div>
-                            <div style="color: var(--text-normal); line-height: 1.4;">
-                                ${messageBody} ${editedHtml}
-                            </div>
+                            <div style="color: var(--text-normal); line-height: 1.4;">${messageBody} ${editedHtml}</div>
                             ${reactionsHtml} 
-                        </div>
-                    `;
+                        </div>`;
                 }
 
                 if (!isUpdate) {
                     container.appendChild(item);
                     container.scrollTop = container.scrollHeight;
-                    if (container.children.length > 100) {
-                        container.removeChild(container.firstElementChild);
-                    }
+                    if (container.children.length > 100) { container.removeChild(container.firstElementChild); }
                 }
             }
 
             window.editMessage = function(id, oldText) {
                 const newText = prompt("Edit your message:", oldText);
-                if (newText && newText !== oldText) {
-                    socket.emit('edit message', { id, newText });
-                }
+                if (newText && newText !== oldText) { socket.emit('edit message', { id, newText }); }
             }
 
             socket.on('connect', () => {
@@ -637,10 +685,7 @@
             });
             
             socket.on('connect_error', (err) => {
-                console.error("Connection Error:", err.message);
-                if (err.message === "Authentication error") {
-                    logout(); 
-                }
+                if (err.message === "Authentication error") { logout(); }
             });
 
             socket.on('chat message', function(msg) {
@@ -651,38 +696,25 @@
                 }
             });
 
-            socket.on('load history', function(history) {
-                history.forEach(addMessageToScreen);
-            });
-
-            socket.on('update message', (updatedMsg) => {
-                addMessageToScreen(updatedMsg);
-            });
-
+            socket.on('load history', function(history) { history.forEach(addMessageToScreen); });
+            socket.on('update message', (updatedMsg) => { addMessageToScreen(updatedMsg); });
             socket.on('delete message', (id) => {
                 const element = document.getElementById(`msg-${id}`);
                 if (element) element.remove();
             });
 
-            socket.on('new room', (room) => {
-                // Determine which list to add it to
-                addRoomToSidebar(room.name, room.type);
-            });
+            socket.on('new room', (room) => { addRoomToSidebar(room.name, room.type); });
 
             socket.on('dm notification', (data) => {
                 if (currentRoom.includes(data.sender)) return; 
-                
                 if (!unreadDMs[data.sender]) unreadDMs[data.sender] = 0;
                 unreadDMs[data.sender]++;
-                
                 if (!savedDMs.includes(data.sender)) {
                     savedDMs.push(data.sender);
                     localStorage.setItem('openDMs', JSON.stringify(savedDMs));
                 }
-                
                 const audio = document.getElementById('notify-sound');
                 if(audio) audio.play().catch(e => console.log("Audio blocked"));
-                
                 renderDMs(); 
             });
 
@@ -693,11 +725,7 @@
                     if (user === username) return; 
                     const li = document.createElement('li');
                     li.className = 'user-item';
-                    
-                    li.onclick = () => {
-                        startDM(user);
-                    };
-                    
+                    li.onclick = () => { startDM(user); };
                     li.innerHTML = `<span style="display:flex; align-items:center;"><span style="font-size: 1.2em; margin-right: 5px;">💬</span> ${user}</span>`;
                     list.appendChild(li);
                 });
@@ -714,26 +742,16 @@
 
             input.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && input.value) {
-                    const messageData = {
-                        user: username, 
-                        text: input.value,
-                        avatar: avatar,
-                        replyTo: replyingTo
-                    };
+                    const messageData = { user: username, text: input.value, avatar: avatar, replyTo: replyingTo };
                     socket.emit('chat message', messageData);
-
                     input.value = '';
                     cancelReply(); 
                 }
             });
 
-            input.addEventListener('input', () => {
-                socket.emit('typing', { user: username, room: currentRoom });
-            });
+            input.addEventListener('input', () => { socket.emit('typing', { user: username, room: currentRoom }); });
 
-            window.sendReaction = function(messageId, emoji) {
-                socket.emit('add reaction', { messageId, emoji });
-            }
+            window.sendReaction = function(messageId, emoji) { socket.emit('add reaction', { messageId, emoji }); }
             window.toggleSidebar = function() { document.querySelector('.servers-list').classList.toggle('active'); }
             window.deleteMessage = function(id) { if(confirm("Delete this?")) socket.emit('delete message', id); }
             window.scrollToMessage = function(id) {
@@ -742,12 +760,9 @@
                     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     element.classList.add('message-highlight');
                     setTimeout(() => { element.classList.remove('message-highlight'); }, 2000);
-                } else {
-                    alert("Message too old or not loaded!");
-                }
+                } else { alert("Message too old or not loaded!"); }
             }
             
-            // UPDATED: Create Room supports type
             window.createRoom = async function(type = 'text') {
                 const name = prompt(`Enter ${type} channel name (letters only):`);
                 if (name) {
@@ -759,10 +774,8 @@
                 }
             }
             
-            // UPDATED: Add Room handles separation
             window.addRoomToSidebar = function(name, type = 'text') {
                 const li = document.createElement('li');
-                
                 if (type === 'voice') {
                     li.className = 'voice-item';
                     li.innerHTML = `<a href="#" onclick="joinVoice('${name}')">${name}</a>`;
@@ -775,19 +788,13 @@
             }
 
             async function loadRooms() {
-                const res = await fetch('/rooms', { 
-                    headers: getAuthHeaders() 
-                });
+                const res = await fetch('/rooms', { headers: getAuthHeaders() });
                 const rooms = await res.json();
-                
-                // Clear lists
                 document.getElementById('text-channels-list').innerHTML = '';
                 document.getElementById('voice-channels-list').innerHTML = '';
-
                 rooms.forEach(room => addRoomToSidebar(room.name, room.type || 'text'));
             }
             loadRooms();
-            
             renderDMs();
         </script>
     </body>

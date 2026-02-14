@@ -16,6 +16,7 @@
     --accent: #8b5cf6;        /* Vibrant Violet */
     --accent-hover: #7c3aed;  /* Darker Violet */
     --danger: #ef4444;        /* Soft Red */
+    --success: #22c55e;       /* Green */
     --hover: #1e293b;         /* Hover color */
     
     --radius-lg: 20px;        /* Big rounded corners */
@@ -26,22 +27,22 @@ body {
     margin: 0;
     padding: 0;
     display: flex;
-    height: 100vh;      /* Fallback */
-    height: 100dvh;     /* Dynamic Viewport Height for Mobile */
+    height: 100vh;      
+    height: 100dvh;     
     font-family: 'Inter', sans-serif; 
     background-color: var(--bg-main);
     color: var(--text-normal);
     overflow: hidden;
 }
 
-/* ROUNDER SIDEBAR */
+/* SIDEBAR */
 .servers-list {
     width: 260px;
     min-width: 260px;
     background-color: var(--bg-sidebar);
     display: flex;
     flex-direction: column;
-    padding: 20px;
+    padding: 10px;
     border-right: 1px solid #334155;
     border-radius: 5px 25px 25px 5px;
     flex-shrink: 0;
@@ -49,7 +50,24 @@ body {
     overflow-y: auto;
 }
 
-/* Header Styling */
+/* HOME ICON */
+.home-btn {
+    background: #334155;
+    color: white;
+    border-radius: 15px;
+    padding: 12px;
+    text-align: center;
+    margin-bottom: 15px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.home-btn:hover { background: var(--accent); }
+
 .section-header {
     display: flex;
     justify-content: space-between;
@@ -64,7 +82,7 @@ body {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 1px;
-    color: var(--accent);
+    color: var(--text-muted);
     margin: 0 10px;
 }
 
@@ -79,7 +97,6 @@ body {
 
 .servers-list ul { list-style: none; padding: 0; margin: 0; }
 
-/* CHANNEL BUTTONS */
 .servers-list li a, .user-item {
     display: flex;
     align-items: center;
@@ -106,7 +123,6 @@ body {
     font-size: 1.1em;
 }
 
-/* VOICE CHANNEL ITEMS */
 .voice-item a::before {
     content: "🔊" !important;
     font-size: 0.8em;
@@ -117,7 +133,7 @@ body {
     background: rgba(35, 165, 89, 0.2);
 }
 
-/* MAIN CHAT AREA */
+/* MAIN AREA */
 .content {
     flex: 1;
     display: flex;
@@ -125,9 +141,147 @@ body {
     height: 100%;
     background-color: var(--bg-main);
     min-width: 0;
-    position: relative; /* Context for absolute positioning */
+    position: relative;
 }
 
+/* --- FRIENDS VIEW STYLES --- */
+.friends-view {
+    display: none; 
+    flex: 1;
+    flex-direction: column;
+    background: var(--bg-main);
+    padding: 20px;
+}
+
+.friends-nav {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 15px;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.friends-header {
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    color: white;
+    font-size: 1.1rem;
+    gap: 10px;
+    margin-right: 20px;
+}
+
+.friend-tab {
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 5px;
+    transition: 0.2s;
+}
+.friend-tab:hover, .friend-tab.active {
+    color: white;
+    background: var(--bg-input);
+}
+.add-friend-btn {
+    background: var(--success);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: auto;
+}
+
+/* Dynamic Friends Content */
+.friends-content {
+    flex: 1;
+    padding-top: 20px;
+    overflow-y: auto;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    text-align: center;
+}
+.empty-state-img {
+    width: 200px;
+    opacity: 0.5;
+    margin-bottom: 20px;
+}
+
+/* Friend Item Row */
+.friend-row {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-top: 1px solid #334155;
+    cursor: pointer;
+}
+.friend-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; }
+
+.friend-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    margin-right: 15px;
+}
+.friend-details { flex: 1; }
+.friend-name { color: white; font-weight: bold; display: block; }
+.friend-status { font-size: 0.8rem; color: var(--text-muted); }
+
+.friend-actions button {
+    background: var(--bg-input);
+    border: none;
+    width: 35px; height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+    margin-left: 5px;
+    color: var(--text-normal);
+}
+.friend-actions button:hover { background: var(--bg-sidebar); color: white; }
+
+/* Add Friend Input */
+.add-friend-form {
+    padding: 20px;
+    border-bottom: 1px solid #334155;
+}
+.add-friend-input {
+    width: 100%;
+    padding: 15px;
+    background: var(--bg-sidebar);
+    border: 1px solid #000;
+    border-radius: 8px;
+    color: white;
+    outline: none;
+    margin-top: 10px;
+}
+.add-friend-input:focus { border-color: var(--accent); }
+.send-request-btn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Request Item */
+.request-item {
+    background: var(--bg-sidebar);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Chat Standard */
 #message-container {
     flex: 1;
     overflow-y: auto;
@@ -137,27 +291,16 @@ body {
     gap: 2px; 
 }
 
-/* MESSAGE ROWS */
 .message-row {
     padding: 4px 20px;
     margin: 0;
     transition: background 0.1s;
     position: relative;
 }
-
 .message-row:hover { background-color: rgba(255,255,255,0.03); }
 
-/* --- MESSAGE GROUPING STYLES --- */
-.msg-header {
-    margin-top: 16px; 
-    padding-top: 4px;
-}
-
-.msg-compact {
-    padding-left: 70px; 
-    padding-top: 2px;
-    padding-bottom: 2px;
-}
+.msg-header { margin-top: 16px; padding-top: 4px; }
+.msg-compact { padding-left: 70px; padding-top: 2px; padding-bottom: 2px; }
 
 .timestamp-hover {
     position: absolute;
@@ -168,10 +311,8 @@ body {
     width: 50px;
     text-align: right;
 }
-
 .message-row:hover .timestamp-hover { opacity: 1; }
 
-/* INPUT AREA */
 .input-area {
     padding: 20px;
     background-color: var(--bg-main);
@@ -191,12 +332,8 @@ body {
     transition: border 0.2s;
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
+#message-input:focus { border-color: var(--accent); }
 
-#message-input:focus {
-    border-color: var(--accent);
-}
-
-/* BUTTONS */
 button { font-family: 'Inter', sans-serif; }
 
 #reply-preview {
@@ -213,14 +350,6 @@ button { font-family: 'Inter', sans-serif; }
     color: var(--text-normal);
 }
 
-#reply-text {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-    margin-right: 10px;
-}
-
 .toolbar-btn {
     background: var(--bg-input);
     border: none;
@@ -232,11 +361,7 @@ button { font-family: 'Inter', sans-serif; }
     font-weight: 600;
     transition: 0.2s;
 }
-
-.toolbar-btn:hover {
-    background: var(--accent);
-    color: white;
-}
+.toolbar-btn:hover { background: var(--accent); color: white; }
 
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg-main); }
@@ -246,9 +371,7 @@ button { font-family: 'Inter', sans-serif; }
     border: 2px solid var(--bg-main);
 }
 
-/* --- MOBILE RESPONSIVENESS FIXES --- */
 @media (max-width: 768px) {
-    /* 1. Sidebar Drawer */
     .servers-list {
         position: fixed;
         left: -280px; 
@@ -260,12 +383,7 @@ button { font-family: 'Inter', sans-serif; }
         border-radius: 0;
         box-shadow: 5px 0 15px rgba(0,0,0,0.5);
     }
-    
-    .servers-list.active {
-        left: 0; 
-    }
-
-    /* 2. Hamburger Button */
+    .servers-list.active { left: 0; }
     #menu-btn {
         display: block !important; 
         position: fixed;
@@ -280,153 +398,58 @@ button { font-family: 'Inter', sans-serif; }
         font-size: 1.2rem;
         cursor: pointer;
     }
-
     .content {
         margin-left: 0;
         width: 100%;
-        height: 100dvh; /* Force correct mobile height */
+        height: 100dvh; 
     }
-
-    /* 3. FIXED INPUT AREA FOR MOBILE */
     .input-area {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
         width: 100%;
-        padding-bottom: max(20px, env(safe-area-inset-bottom)); /* iPhone Safe Area */
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
         border-top: 1px solid rgba(255,255,255,0.1);
         box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
     }
-
-    /* 4. PADDING FOR MESSAGES */
-    #message-container {
-        padding-bottom: 140px !important; 
-    }
+    #message-container { padding-bottom: 140px !important; }
 }
 
-/* UTILS */
-.reaction-btn { 
-    background: var(--bg-input); 
-    border-radius: 12px;
-    border: 1px solid transparent; 
-}
-.reaction-btn.active-reaction { 
-    background: rgba(139, 92, 246, 0.2); 
-    border-color: var(--accent); 
-}
+.reaction-btn { background: var(--bg-input); border-radius: 12px; border: 1px solid transparent; }
+.reaction-btn.active-reaction { background: rgba(139, 92, 246, 0.2); border-color: var(--accent); }
 .media-attachment { border-radius: 16px; margin-top: 8px; width: 100%; max-width: 300px; }
 .reply-quote { border-left-color: var(--text-muted); color: var(--text-muted); }
 .msg-actions { background: var(--bg-sidebar); padding: 4px 8px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
 
-/* VOICE DOCK (Active Call Area) */
-/* This sits above the user panel like a footer */
 .voice-dock {
-    display: none; /* Hidden unless connected */
+    display: none; 
     background: #232428;
     padding: 10px;
     border-top: 1px solid #334155;
-    margin-top: auto; /* Push to bottom */
+    margin-top: auto; 
 }
-
-.voice-status {
-    color: #22c55e;
-    font-size: 0.8rem;
-    font-weight: bold;
-    margin-bottom: 5px;
-    display: block;
-}
-
-.voice-room-name {
-    color: white;
-    font-size: 0.9rem;
-    display: block;
-    margin-bottom: 10px;
-}
-
-.voice-controls {
-    display: flex;
-    gap: 5px;
-}
-
-.control-btn {
-    flex: 1;
-    background: #2b2d31;
-    border: none;
-    padding: 8px;
-    border-radius: 5px;
-    color: white;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
+.voice-status { color: #22c55e; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display: block; }
+.voice-room-name { color: white; font-size: 0.9rem; display: block; margin-bottom: 10px; }
+.voice-controls { display: flex; gap: 5px; }
+.control-btn { flex: 1; background: #2b2d31; border: none; padding: 8px; border-radius: 5px; color: white; cursor: pointer; font-size: 0.8rem; }
 .control-btn:hover { background: #3f4147; }
 .btn-danger { background: #da373c; }
 .btn-danger:hover { background: #ef4444; }
 
-
-/* USER PANEL */
 .user-panel {
-    background: #232428; /* Slightly darker to match voice dock */
+    background: #232428; 
     padding: 15px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
+.user-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+.user-info img { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #22c55e; }
+.user-info span { font-weight: bold; font-size: 0.9rem; color: var(--text-header); white-space: nowrap; }
+.logout-btn { background: none; border: none; cursor: pointer; font-size: 1.2rem; opacity: 0.6; transition: 0.2s; padding: 5px; border-radius: 50%; }
+.logout-btn:hover { background-color: var(--danger); opacity: 1; color: white; }
 
-.user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    overflow: hidden; 
-}
-
-.user-info img {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid #22c55e; 
-}
-
-.user-info span {
-    font-weight: bold;
-    font-size: 0.9rem;
-    color: var(--text-header);
-    white-space: nowrap;
-}
-
-.logout-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1.2rem;
-    opacity: 0.6;
-    transition: 0.2s;
-    padding: 5px;
-    border-radius: 50%;
-}
-
-.logout-btn:hover {
-    background-color: var(--danger);
-    opacity: 1;
-    color: white; 
-}
-
-/* STATUS DOTS */
-.status-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 8px;
-    border: 2px solid var(--bg-sidebar); 
-}
-
-.status-online { background-color: #22c55e; } 
-.status-idle   { background-color: #eab308; } 
-.status-dnd    { background-color: #ef4444; } 
-.status-offline{ background-color: #949ba4; } 
-
-/* PROFILE MODAL */
 #profile-modal {
     display: none; 
     position: fixed;
@@ -437,7 +460,6 @@ button { font-family: 'Inter', sans-serif; }
     justify-content: center;
     align-items: center;
 }
-
 .profile-card {
     background: var(--bg-main);
     width: 350px;
@@ -449,37 +471,9 @@ button { font-family: 'Inter', sans-serif; }
     padding-bottom: 20px;
     border: 1px solid var(--bg-input);
 }
-
-.profile-banner {
-    height: 80px;
-    background: var(--accent);
-}
-
-.profile-avatar {
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    border: 5px solid var(--bg-main);
-    margin-top: -45px; 
-    background: var(--bg-main);
-}
-
+.profile-banner { height: 80px; background: var(--accent); }
+.profile-avatar { width: 90px; height: 90px; border-radius: 50%; border: 5px solid var(--bg-main); margin-top: -45px; background: var(--bg-main); }
 .profile-name { font-size: 1.5rem; color: var(--text-header); margin: 10px 0 5px; }
 .profile-status { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px; }
-.profile-bio { 
-    background: var(--bg-input); 
-    margin: 10px 20px; 
-    padding: 10px; 
-    border-radius: 8px; 
-    color: var(--text-normal);
-    text-align: left;
-    font-size: 0.9rem;
-}
-
-.close-modal {
-    position: absolute; top: 10px; right: 15px;
-    color: white; cursor: pointer; font-size: 1.2rem;
-    background: rgba(0,0,0,0.2);
-    width: 30px; height: 30px; border-radius: 50%;
-    line-height: 30px;
-}
+.profile-bio { background: var(--bg-input); margin: 10px 20px; padding: 10px; border-radius: 8px; color: var(--text-normal); text-align: left; font-size: 0.9rem; }
+.close-modal { position: absolute; top: 10px; right: 15px; color: white; cursor: pointer; font-size: 1.2rem; background: rgba(0,0,0,0.2); width: 30px; height: 30px; border-radius: 50%; line-height: 30px; }
