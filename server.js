@@ -136,11 +136,19 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid credentials" });
         }
 
+        // Check if Secret exists
+        if (!process.env.JWT_SECRET) {
+            throw new Error("JWT_SECRET is missing from .env file");
+        }
+
         // ISSUE JWT TOKEN
         const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.json({ success: true, username: user.username, avatar: user.avatar, token });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Login Error:", err); // <--- THIS will print the real error to your terminal
+        res.status(500).json({ success: false, message: "Server Error: Check Terminal" }); 
+    }
 });
 
 // 2. PROTECTED ROUTES (Require Token)
