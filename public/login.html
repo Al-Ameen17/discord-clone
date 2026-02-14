@@ -62,6 +62,8 @@
 
             const data = await res.json();
             if (data.success) {
+                // SAVE TOKEN SECURELY
+                localStorage.setItem('token', data.token); // <--- NEW
                 localStorage.setItem('username', data.username);
                 localStorage.setItem('avatar', data.avatar);
                 window.location.href = '/';
